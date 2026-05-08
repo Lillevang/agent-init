@@ -1,0 +1,109 @@
+#!/usr/bin/env bash
+# agent-init — scaffold a repo for sandboxed agentic development
+#
+# Usage:
+#   agent-init [--force] [--no-git] [TARGET_DIR]
+#
+# If TARGET_DIR is omitted, scaffolds into the current directory.
+# Pass --force to overwrite existing files. Without it, existing files are skipped.
+
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+TEMPLATES_DIR="$SCRIPT_DIR/templates"
+
+FORCE=0
+INIT_GIT=1
+TARGET="."
+
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        --force) FORCE=1; shift ;;
+        --no-git) INIT_GIT=0; shift ;;
+        -h|--help)
+            sed -n '2,9p' "$0" | sed 's/^# \{0,1\}//'
+            exit 0
+            ;;
+        -*)
+            echo "Unknown option: $1" >&2
+            exit 1
+            ;;
+        *)
+            TARGET="$1"; shift
+            ;;
+    esac
+done
+
+if [[ ! -d "$TEMPLATES_DIR" ]]; then
+    echo "ERROR: templates directory not found at $TEMPLATES_DIR" >&2
+    exit 1
+fi
+
+mkdir -p "$TARGET"
+TARGET="$(cd "$TARGET" && pwd)"
+
+echo "→ Scaffolding agentic dev environment in: $TARGET"
+
+# Detect project name from directory
+PROJECT_NAME="$(basename "$TARGET")"
+
+# Copy a file with optional substitution. Skips existing unless FORCE=1.
+copy_template() {
+    local src="$1"
+    local dst="$2"
+    local rel="${dst#$TARGET/}"
+
+    if [[ -e "$dst" && $FORCE -eq 0 ]]; then
+        echo "  skip   $rel (exists, use --force to overwrite)"
+        return
+    fi
+
+    mkdir -p "$(dirname "$dst")"
+    # Substitute __PROJECT_NAME__ token
+    sed "s|__PROJECT_NAME__|$PROJECT_NAME|g" "$src" > "$dst"
+    echo "  write  $rel"
+}
+
+# Walk the templates directory and copy everything
+while IFS= read -r -d '' src; do
+    rel="${src#$TEMPLATES_DIR/}"
+    copy_template "$src" "$TARGET/$rel"
+done < <(find "$TEMPLATES_DIR" -type f -print0)
+
+# Set executable bits on scripts
+find "$TARGET/.agent/scripts" -name '*.sh' -exec chmod +x {} + 2>/dev/null || true
+find "$TARGET/.devcontainer" -name '*.sh' -exec chmod +x {} + 2>/dev/null || true
+
+# Symlink CLAUDE.md → AGENTS.md so both tools find it
+if [[ -f "$TARGET/.agent/AGENTS.md" && ! -e "$TARGET/.agent/CLAUDE.md" ]]; then
+    ln -sf AGENTS.md "$TARGET/.agent/CLAUDE.md"
+    echo "  link   .agent/CLAUDE.md → AGENTS.md"
+fi
+
+# Top-level symlinks so agents pick up instructions without prompting
+for name in AGENTS.md CLAUDE.md; do
+    if [[ ! -e "$TARGET/$name" ]]; then
+        ln -sf ".agent/$name" "$TARGET/$name"
+        echo "  link   $name → .agent/$name"
+    fi
+done
+
+# Initialize git if requested and not already a repo
+if [[ $INIT_GIT -eq 1 && ! -d "$TARGET/.git" ]]; then
+    (cd "$TARGET" && git init -q && echo "  init   git repository")
+fi
+
+cat <<EOF
+
+✓ Done.
+
+Next steps:
+  1. Read $TARGET/README.agent.md for dependency install instructions
+  2. Edit .agent/AGENTS.md to describe THIS project's specifics
+  3. Edit .agent/CODEBASE.md once you have code to map
+  4. Run:  devcontainer up --workspace-folder $TARGET
+  5. Run:  devcontainer exec --workspace-folder $TARGET bash
+  6. Inside the container: just check
+
+Helix on the host still works — the repo is bind-mounted into the container.
+EOF

@@ -1,0 +1,39 @@
+repos:
+  # Generic hygiene
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v5.0.0
+    hooks:
+      - id: trailing-whitespace
+      - id: end-of-file-fixer
+      - id: check-yaml
+      - id: check-added-large-files
+        args: ['--maxkb=500']
+      - id: check-merge-conflict
+      - id: detect-private-key
+
+  # Regenerate codemap on commit (cheap; keeps it fresh)
+  - repo: local
+    hooks:
+      - id: codemap
+        name: regenerate codemap
+        entry: ./.agent/scripts/gen-codemap.sh
+        language: system
+        pass_filenames: false
+        stages: [pre-commit]
+
+  # Run the full check gate. Comment out if too slow for your taste —
+  # but then make sure CI runs it.
+  - repo: local
+    hooks:
+      - id: check
+        name: agent done-gate (just check)
+        entry: just check
+        language: system
+        pass_filenames: false
+        stages: [pre-push]
+
+# Notes:
+# - You can run with `prek` instead of `pre-commit` for speed; the config is
+#   compatible. Verify your hooks work under prek before relying on it.
+# - Add language-specific hooks (rustfmt, clippy, prettier, ruff, etc.) as
+#   you settle on the stack. Don't duplicate what `just check` already runs.

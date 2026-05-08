@@ -1,0 +1,39 @@
+{
+  "name": "__PROJECT_NAME__-agent",
+  "build": {
+    "dockerfile": "Dockerfile"
+  },
+  "remoteUser": "dev",
+  "workspaceFolder": "/workspaces/__PROJECT_NAME__",
+  "workspaceMount": "source=${localWorkspaceFolder},target=/workspaces/__PROJECT_NAME__,type=bind,consistency=cached",
+
+  "runArgs": [
+    "--cap-drop=ALL",
+    "--security-opt=no-new-privileges",
+    "--cap-add=NET_BIND_SERVICE"
+  ],
+
+  "mounts": [
+    // Add sibling repos here to simulate a monorepo. Example:
+    // "source=${localEnv:HOME}/code/other-repo,target=/workspaces/vendor/other-repo,type=bind,readonly"
+  ],
+
+  "remoteEnv": {
+    "ANTHROPIC_API_KEY": "${localEnv:ANTHROPIC_API_KEY}",
+    "OPENAI_API_KEY": "${localEnv:OPENAI_API_KEY}",
+    "GH_TOKEN": "${localEnv:GH_TOKEN}"
+  },
+
+  // Swap to "sudo /usr/local/bin/init-firewall.sh && /usr/local/bin/post-create.sh"
+  // once you've reviewed the firewall allowlist.
+  "postCreateCommand": "/usr/local/bin/post-create.sh",
+
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "ms-azuretools.vscode-docker",
+        "esbenp.prettier-vscode"
+      ]
+    }
+  }
+}
