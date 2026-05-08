@@ -3,19 +3,14 @@
   "build": {
     "dockerfile": "Dockerfile"
   },
-  "remoteUser": "dev",
+  "remoteUser": "vscode",
   "workspaceFolder": "/workspaces/__PROJECT_NAME__",
   "workspaceMount": "source=${localWorkspaceFolder},target=/workspaces/__PROJECT_NAME__,type=bind,consistency=cached",
 
-  "runArgs": [
-    "--cap-drop=ALL",
-    "--security-opt=no-new-privileges",
-    "--cap-add=NET_BIND_SERVICE"
-  ],
-
   "mounts": [
-    // Add sibling repos here to simulate a monorepo. Example:
-    // "source=${localEnv:HOME}/code/other-repo,target=/workspaces/vendor/other-repo,type=bind,readonly"
+    // Mount sibling repos as peers of the workspace so the agent can `cd ../<other-repo>`
+    // and read them for context. Use `,readonly` unless cross-repo edits are intended.
+    // "source=${localEnv:HOME}/repos/tools/other-repo,target=/workspaces/other-repo,type=bind,readonly"
   ],
 
   "remoteEnv": {
@@ -24,8 +19,6 @@
     "GH_TOKEN": "${localEnv:GH_TOKEN}"
   },
 
-  // Swap to "sudo /usr/local/bin/init-firewall.sh && /usr/local/bin/post-create.sh"
-  // once you've reviewed the firewall allowlist.
   "postCreateCommand": "/usr/local/bin/post-create.sh",
 
   "customizations": {

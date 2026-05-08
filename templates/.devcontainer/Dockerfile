@@ -2,7 +2,8 @@
 # Switch to fedora:40 or similar if you prefer; just adjust the package commands.
 FROM mcr.microsoft.com/devcontainers/base:debian-12
 
-ARG USERNAME=dev
+# The base image ships a `vscode` user (uid 1000) with passwordless sudo.
+ARG USERNAME=vscode
 
 # System packages
 RUN apt-get update && apt-get install -y --no-install-recommends \
@@ -11,14 +12,11 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
         curl \
         git \
         gnupg \
-        iproute2 \
-        iptables \
         jq \
         less \
         ripgrep \
         fd-find \
         ffmpeg \
-        sudo \
         unzip \
     && rm -rf /var/lib/apt/lists/*
 
@@ -50,21 +48,16 @@ RUN npm install -g \
 # Playwright with browsers (heavy; comment out if you don't need frontend testing)
 RUN npm install -g playwright && npx playwright install --with-deps chromium
 
-# Pre-commit
-RUN pipx install pre-commit && pipx ensurepath
-
-# Sudoers entry for firewall script (only this command, no general sudo)
-RUN echo "${USERNAME} ALL=(root) NOPASSWD: /usr/local/bin/init-firewall.sh" \
-    > /etc/sudoers.d/init-firewall \
-    && chmod 0440 /etc/sudoers.d/init-firewall
-
-# Helper scripts
-COPY init-firewall.sh /usr/local/bin/init-firewall.sh
+# post-create helper
 COPY post-create.sh /usr/local/bin/post-create.sh
-RUN chmod +x /usr/local/bin/init-firewall.sh /usr/local/bin/post-create.sh
+RUN chmod +x /usr/local/bin/post-create.sh
 
 USER ${USERNAME}
 ENV PATH="/home/${USERNAME}/.local/bin:${PATH}"
 
-# Persist agent CLI auth/config across rebuilds (mount externally if you want)
+# Pre-commit, installed for the dev user so it lands on PATH for the agent.
+RUN pipx install pre-commit && pipx ensurepath
+
+# Persist agent CLI auth/config across rebuilds (bind-mount these from the host
+# in devcontainer.json if you want auth to survive container rebuilds).
 RUN mkdir -p /home/${USERNAME}/.config/claude /home/${USERNAME}/.config/codex

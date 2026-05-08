@@ -10,8 +10,7 @@ The goal is: clone a repo, run `agent-init`, edit a few files, then let the agen
 your-project/
 ├── .devcontainer/
 │   ├── devcontainer.json        # Podman/Docker compatible
-│   ├── Dockerfile               # base image + agents installed
-│   └── init-firewall.sh         # egress allowlist (optional)
+│   └── Dockerfile               # base image + agents installed
 ├── .agent/
 │   ├── AGENTS.md                # canonical agent instructions (Codex)
 │   ├── CLAUDE.md                # symlink → AGENTS.md
@@ -25,7 +24,6 @@ your-project/
 │       └── record-feature.sh    # playwright + ffmpeg helper
 ├── apis/                        # OpenAPI specs go here
 ├── clients/                     # generated clients land here
-├── vendor/                      # mount-point for sibling repos
 ├── AGENTS.md → .agent/AGENTS.md # top-level symlinks so tools find them
 ├── CLAUDE.md → .agent/CLAUDE.md
 ├── .pre-commit-config.yaml
@@ -33,6 +31,9 @@ your-project/
 ├── .gitignore
 └── README.agent.md              # project-level doc (this is for the user)
 ```
+
+Sibling repos (for monorepo-style cross-repo browsing) are mounted as peers of
+the workspace at `/workspaces/<other-repo>`, not under this tree — see below.
 
 ## Dependencies
 
@@ -134,10 +135,9 @@ After scaffolding:
 1. Read `README.agent.md` in the project for project-side documentation.
 2. Edit `.agent/AGENTS.md` to describe **this project's** stack, conventions, and quirks. The template is generic.
 3. Edit `.devcontainer/Dockerfile` to add language toolchains you need (Rust, Go, Python, etc.).
-4. Optionally enable the firewall: in `devcontainer.json` flip `"postCreateCommand"` to call `init-firewall.sh`.
-5. `devcontainer up --workspace-folder .`
-6. `devcontainer exec --workspace-folder . bash` and run `just check` to confirm the gate works.
-7. Inside the container, set your API keys and start the agent:
+4. `devcontainer up --workspace-folder .`
+5. `devcontainer exec --workspace-folder . bash` and run `just check` to confirm the gate works.
+6. Inside the container, set your API keys and start the agent:
    ```bash
    export ANTHROPIC_API_KEY=...
    claude
@@ -145,15 +145,28 @@ After scaffolding:
 
 ## Mounting sibling repos (fake monorepo)
 
+Sibling repos are mounted as **peers** of the workspace, so the agent sees a
+flat layout under `/workspaces/`:
+
+```
+/workspaces/
+├── your-project/        ← workspace root (read-write)
+├── shared-lib/          ← sibling, read-only
+└── other-service/       ← sibling, read-only
+```
+
 Edit `.devcontainer/devcontainer.json` and add to `mounts`:
 
 ```json
 "mounts": [
-  "source=${localEnv:HOME}/code/sibling-repo,target=/workspaces/vendor/sibling-repo,type=bind,readonly"
+  "source=${localEnv:HOME}/repos/tools/shared-lib,target=/workspaces/shared-lib,type=bind,readonly"
 ]
 ```
 
-The `readonly` is important if you don't want the agent to commit there by mistake. Remove it if the agent legitimately needs to edit.
+`readonly` is the safe default — drop it only when cross-repo edits are
+intentional. The agent reaches siblings with `cd ../shared-lib`. Edits to
+non-readonly mounts go into the source repo's working tree on the host, not
+this repo's git history.
 
 ## What this tool does NOT do
 

@@ -71,11 +71,13 @@ Then `wsl --shutdown` from Windows PowerShell and re-open the distro.
 │   └── scripts/           # check.sh, review.sh, gen-codemap.sh, record-feature.sh
 ├── apis/                  # OpenAPI specs — clients generated from these
 ├── clients/               # generated clients (don't hand-edit)
-├── vendor/                # mount-point for sibling repos (fake monorepo)
 ├── Justfile               # check, fmt, lint, typecheck, test, etc.
 ├── .pre-commit-config.yaml
 └── README.agent.md        # this file
 ```
+
+Sibling repos are mounted as **peers** of this workspace inside the container —
+see [Mounting sibling repos](#mounting-sibling-repos-monorepo-simulation) below.
 
 ## The done-gate
 
@@ -119,30 +121,30 @@ Watch the recording before declaring done. The video lives in `.agent/recordings
 
 ## Mounting sibling repos (monorepo simulation)
 
+Sibling repos are mounted as **peers** of this workspace inside the container, so
+the layout looks like a monorepo from the agent's perspective:
+
+```
+/workspaces/
+├── __PROJECT_NAME__/      ← this repo (workspace root, read-write)
+├── shared-lib/            ← sibling, mounted read-only
+└── other-service/         ← sibling, mounted read-only
+```
+
 Edit `.devcontainer/devcontainer.json`, add to `mounts`:
 
 ```json
 "mounts": [
-  "source=${localEnv:HOME}/code/sibling-repo,target=/workspaces/vendor/sibling-repo,type=bind,readonly"
+  "source=${localEnv:HOME}/repos/tools/shared-lib,target=/workspaces/shared-lib,type=bind,readonly",
+  "source=${localEnv:HOME}/repos/tools/other-service,target=/workspaces/other-service,type=bind,readonly"
 ]
 ```
 
-Use `,readonly` if the agent shouldn't write there. Drop it if cross-repo edits are legitimate.
-
-The agent sees these under `vendor/`. Mention them explicitly in `.agent/AGENTS.md` so the agent knows what's read-only context vs. in-scope code.
-
-## Egress firewall (optional, recommended)
-
-`.devcontainer/init-firewall.sh` drops all egress except an allowlist (Anthropic API, OpenAI API, npm, pypi, github, etc.). To enable:
-
-1. Review the allowlist in `init-firewall.sh` and adjust.
-2. In `devcontainer.json`, change `postCreateCommand` to:
-   ```json
-   "postCreateCommand": "sudo /usr/local/bin/init-firewall.sh && /usr/local/bin/post-create.sh"
-   ```
-3. Rebuild the container.
-
-DNS is allowed; only HTTP(S) egress to listed hosts succeeds. Dropped packets are logged via iptables — check with `sudo dmesg | grep 'FIREWALL DROP'` to see what got blocked.
+From inside the container the agent reaches them with `cd ../shared-lib` etc. Use
+`,readonly` unless cross-repo edits are legitimate. Note: edits to mounts without
+`readonly` go into the source repo's working tree on the host — they will not show
+up in this repo's git history. List the siblings explicitly in `.agent/AGENTS.md`
+so the agent knows what's read-only context vs. in-scope code.
 
 ## Helix from the host
 
@@ -178,9 +180,6 @@ systemctl --user status podman.socket
 
 **SELinux permission denied on bind mounts (bare-metal Fedora)**
 The devcontainer CLI usually handles this, but if you mount things manually, add `:Z` (private label) or `:z` (shared label) to the mount.
-
-**Agent can't reach the API**
-If you enabled the firewall, check `sudo dmesg | grep DROP`. If a host you need is being blocked, add it to `init-firewall.sh` and re-run the container.
 
 **Pre-commit hook is slow**
 The `pre-push` `just check` hook runs the full gate. Move it to `pre-commit` if you want faster feedback per commit, or drop it entirely and rely on CI.

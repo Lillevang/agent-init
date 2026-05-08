@@ -11,16 +11,6 @@ repos:
       - id: check-merge-conflict
       - id: detect-private-key
 
-  # Regenerate codemap on commit (cheap; keeps it fresh)
-  - repo: local
-    hooks:
-      - id: codemap
-        name: regenerate codemap
-        entry: ./.agent/scripts/gen-codemap.sh
-        language: system
-        pass_filenames: false
-        stages: [pre-commit]
-
   # Run the full check gate. Comment out if too slow for your taste —
   # but then make sure CI runs it.
   - repo: local

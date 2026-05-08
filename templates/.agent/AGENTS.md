@@ -78,7 +78,7 @@ If the repo has OpenAPI specs in `apis/`, the check script regenerates clients i
 - Do not modify `.git/`, `.devcontainer/`, or `.agent/` files unless explicitly asked.
 - Do not run `git push --force` on `main` or any branch you didn't create yourself.
 - Do not install global packages that aren't in the Dockerfile. If you need one, propose adding it.
-- Do not read or modify mounted vendor repos under `vendor/` unless explicitly told they're in scope. They're there for context, not editing.
+- Sibling repos may be mounted as peers of this workspace at `/workspaces/<other-repo>` (i.e. `cd ../<other-repo>` from the workspace root). Treat them as read-only context for understanding integrations or patterns, not as code to edit, unless explicitly told they're in scope.
 - Do not bypass `check.sh` failures with `--no-verify` or by editing the script.
 
 ## When you're stuck
