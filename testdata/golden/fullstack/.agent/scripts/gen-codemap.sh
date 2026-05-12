@@ -9,6 +9,15 @@ shopt -s globstar nullglob
 REPO_ROOT="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
 cd "$REPO_ROOT"
 
+# Required tools. The codemap output is deterministic only if these are
+# present — silent fallbacks would make goldens flaky across environments.
+for tool in rg; do
+    if ! command -v "$tool" >/dev/null 2>&1; then
+        echo "ERROR: '$tool' is required for gen-codemap.sh. Install it (apt-get install ripgrep) and re-run." >&2
+        exit 1
+    fi
+done
+
 CODEMAP=".agent/CODEBASE.md"
 MARKER="<!-- HAND-WRITTEN BELOW — EDIT FREELY -->"
 
