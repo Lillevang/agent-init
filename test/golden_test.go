@@ -7,6 +7,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"strings"
 	"testing"
 
 	"github.com/mikeschinkel/agent-init/internal/testflags"
@@ -148,9 +149,53 @@ func compareEntry(path string, want, got treeEntry) error {
 		return fmt.Errorf("%s link = %q, want %q", path, got.link, want.link)
 	}
 	if !bytes.Equal(want.content, got.content) {
-		return fmt.Errorf("%s content differs", path)
+		return fmt.Errorf("%s content differs:\n%s", path, contentDiff(want.content, got.content))
 	}
 	return nil
+}
+
+// contentDiff returns a short unified diff between want and got, or a
+// fallback message if the system has no `diff` binary. The output is capped
+// so a wildly-divergent file doesn't drown the test log.
+func contentDiff(want, got []byte) string {
+	if _, err := exec.LookPath("diff"); err != nil {
+		return fmt.Sprintf("(want %d bytes, got %d bytes; install `diff` for a unified view)", len(want), len(got))
+	}
+	wantFile, err := writeTempFile(want)
+	if err != nil {
+		return fmt.Sprintf("(diff unavailable: %v)", err)
+	}
+	defer os.Remove(wantFile)
+	gotFile, err := writeTempFile(got)
+	if err != nil {
+		return fmt.Sprintf("(diff unavailable: %v)", err)
+	}
+	defer os.Remove(gotFile)
+	cmd := exec.Command("diff", "-u", "--label", "golden", "--label", "scaffolded", wantFile, gotFile)
+	output, _ := cmd.CombinedOutput()
+	lines := strings.Split(strings.TrimRight(string(output), "\n"), "\n")
+	const maxLines = 60
+	if len(lines) > maxLines {
+		lines = append(lines[:maxLines], fmt.Sprintf("... (%d more diff lines suppressed)", len(lines)-maxLines))
+	}
+	return strings.Join(lines, "\n")
+}
+
+func writeTempFile(data []byte) (string, error) {
+	f, err := os.CreateTemp("", "golden-*.txt")
+	if err != nil {
+		return "", err
+	}
+	if _, err := f.Write(data); err != nil {
+		f.Close()
+		os.Remove(f.Name())
+		return "", err
+	}
+	if err := f.Close(); err != nil {
+		os.Remove(f.Name())
+		return "", err
+	}
+	return f.Name(), nil
 }
 
 func copyTree(srcRoot, dstRoot string) error {

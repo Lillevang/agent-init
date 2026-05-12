@@ -42,30 +42,31 @@ else
     TREE_CMD="find . -maxdepth 3 -type d -not -path '*/\.*' -not -path '*/node_modules*' -not -path '*/target*' -not -path '*/dist*' -not -path '*/clients*'"
 fi
 
-# Detect a few common API-surface signals; this is intentionally rough
+# Detect a few common API-surface signals; this is intentionally rough.
+# --sort path keeps output deterministic across filesystems / CI runners.
 api_surface() {
     local found=0
     if compgen -G "**/*.rs" > /dev/null 2>&1; then
         echo "### Rust"
-        rg --no-heading -n '^pub (fn|struct|enum|trait|mod) ' --type rust 2>/dev/null \
+        rg --no-heading -n --sort path '^pub (fn|struct|enum|trait|mod) ' --type rust 2>/dev/null \
             | head -100 || true
         found=1
     fi
     if compgen -G "**/*.go" > /dev/null 2>&1; then
         echo "### Go"
-        rg --no-heading -n '^func [A-Z]|^type [A-Z]' --type go 2>/dev/null \
+        rg --no-heading -n --sort path '^func [A-Z]|^type [A-Z]' --type go 2>/dev/null \
             | head -100 || true
         found=1
     fi
     if compgen -G "**/*.ts" > /dev/null 2>&1 || compgen -G "**/*.tsx" > /dev/null 2>&1; then
         echo "### TypeScript"
-        rg --no-heading -n '^export (function|class|interface|type|const|enum) ' --type ts 2>/dev/null \
+        rg --no-heading -n --sort path '^export (function|class|interface|type|const|enum) ' --type ts 2>/dev/null \
             | head -100 || true
         found=1
     fi
     if compgen -G "**/*.py" > /dev/null 2>&1; then
         echo "### Python"
-        rg --no-heading -n '^(class |def )[A-Za-z_]' --type py 2>/dev/null \
+        rg --no-heading -n --sort path '^(class |def )[A-Za-z_]' --type py 2>/dev/null \
             | grep -v '^.*:def _' \
             | head -100 || true
         found=1
