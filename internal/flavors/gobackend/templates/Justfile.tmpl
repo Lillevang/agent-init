@@ -1,0 +1,75 @@
+# Justfile for {{.ProjectName}}, a Go HTTP backend.
+
+set shell := ["bash", "-uc"]
+
+default:
+    @just --list
+
+# Full done-gate
+check:
+    ./.agent/scripts/check.sh
+
+# Regenerate codemap
+codemap:
+    ./.agent/scripts/gen-codemap.sh
+
+# Format Go code
+fmt:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    files=$(find . -name '*.go' -not -path './vendor/*' -print)
+    if [[ -z "$files" ]]; then
+        echo "no Go files, skipping fmt"
+        exit 0
+    fi
+    gofmt -w $files
+    if command -v goimports >/dev/null 2>&1; then
+        goimports -w $files
+    fi
+
+# Lint Go code
+lint:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    if ! command -v golangci-lint >/dev/null 2>&1; then
+        echo "golangci-lint not installed, skipping"
+        exit 0
+    fi
+    golangci-lint run
+
+# Type check
+typecheck:
+    go vet ./...
+
+# Run unit tests
+test:
+    go test ./...
+
+# Run the server locally on $ADDR (default :8080)
+run-dev:
+    go run ./cmd/server
+
+# Build a local server binary into ./dist for the current platform
+build:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    mkdir -p dist
+    go build -o dist/server ./cmd/server
+
+# Cross-compile release binaries for linux/amd64 and linux/arm64 (typical container targets)
+cross-build:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    mkdir -p dist
+    for target in linux/amd64 linux/arm64; do
+        goos=${target%%/*}
+        goarch=${target##*/}
+        name="server-${goos}-${goarch}"
+        echo "→ building $name"
+        GOOS=$goos GOARCH=$goarch CGO_ENABLED=0 \
+            go build -ldflags "-s -w" -o "dist/$name" ./cmd/server
+    done
+
+# Invoke reviewer agent
+review:
+    ./.agent/scripts/review.sh

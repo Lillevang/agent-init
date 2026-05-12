@@ -35,38 +35,61 @@ fi
 
 # Pick a directory tree tool
 if command -v tree >/dev/null 2>&1; then
-    TREE_CMD="tree -L 3 -I 'node_modules|target|dist|.git|.next|__pycache__|.venv|venv|build|.agent|clients' --noreport ."
+    TREE_CMD="tree -L 3 --charset utf-8 -I 'node_modules|target|dist|.git|.next|__pycache__|.venv|venv|build|.agent|clients' --noreport ."
 elif command -v fd >/dev/null 2>&1; then
     TREE_CMD="fd --max-depth 3 --hidden --exclude .git --exclude node_modules --exclude target --exclude dist --exclude .agent --exclude clients"
 else
     TREE_CMD="find . -maxdepth 3 -type d -not -path '*/\.*' -not -path '*/node_modules*' -not -path '*/target*' -not -path '*/dist*' -not -path '*/clients*'"
 fi
 
-# Detect a few common API-surface signals; this is intentionally rough
+# Detect a few common API-surface signals; this is intentionally rough.
+# Using grep + sort keeps output deterministic across filesystems / CI runners.
+# (We tried ripgrep first; its directory-walk order varies between rg versions
+# and gitignore parsing differs subtly between environments.)
+GREP_EXCLUDES=(
+    --exclude-dir=.git
+    --exclude-dir=node_modules
+    --exclude-dir=vendor
+    --exclude-dir=dist
+    --exclude-dir=build
+    --exclude-dir=target
+    --exclude-dir=__pycache__
+    --exclude-dir=.venv
+    --exclude-dir=venv
+)
+
 api_surface() {
     local found=0
     if compgen -G "**/*.rs" > /dev/null 2>&1; then
         echo "### Rust"
-        rg --no-heading -n '^pub (fn|struct|enum|trait|mod) ' --type rust 2>/dev/null \
+        grep -rEn --include='*.rs' "${GREP_EXCLUDES[@]}" '^pub (fn|struct|enum|trait|mod) ' . 2>/dev/null \
+            | sed 's|^\./||' \
+            | sort -t: -k1,1 -k2,2n \
             | head -100 || true
         found=1
     fi
     if compgen -G "**/*.go" > /dev/null 2>&1; then
         echo "### Go"
-        rg --no-heading -n '^func [A-Z]|^type [A-Z]' --type go 2>/dev/null \
+        grep -rEn --include='*.go' "${GREP_EXCLUDES[@]}" '^func [A-Z]|^type [A-Z]' . 2>/dev/null \
+            | sed 's|^\./||' \
+            | sort -t: -k1,1 -k2,2n \
             | head -100 || true
         found=1
     fi
     if compgen -G "**/*.ts" > /dev/null 2>&1 || compgen -G "**/*.tsx" > /dev/null 2>&1; then
         echo "### TypeScript"
-        rg --no-heading -n '^export (function|class|interface|type|const|enum) ' --type ts 2>/dev/null \
+        grep -rEn --include='*.ts' --include='*.tsx' "${GREP_EXCLUDES[@]}" '^export (function|class|interface|type|const|enum) ' . 2>/dev/null \
+            | sed 's|^\./||' \
+            | sort -t: -k1,1 -k2,2n \
             | head -100 || true
         found=1
     fi
     if compgen -G "**/*.py" > /dev/null 2>&1; then
         echo "### Python"
-        rg --no-heading -n '^(class |def )[A-Za-z_]' --type py 2>/dev/null \
+        grep -rEn --include='*.py' "${GREP_EXCLUDES[@]}" '^(class |def )[A-Za-z_]' . 2>/dev/null \
             | grep -v '^.*:def _' \
+            | sed 's|^\./||' \
+            | sort -t: -k1,1 -k2,2n \
             | head -100 || true
         found=1
     fi

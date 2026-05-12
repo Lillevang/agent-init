@@ -1,0 +1,36 @@
+repos:
+  # Generic hygiene
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v5.0.0
+    hooks:
+      - id: trailing-whitespace
+      - id: end-of-file-fixer
+      - id: check-yaml
+      - id: check-added-large-files
+        args: ['--maxkb=500']
+      - id: check-merge-conflict
+      - id: detect-private-key
+
+  - repo: local
+    hooks:
+      - id: gofmt
+        name: gofmt
+        entry: gofmt -w
+        language: system
+        files: '\.go$'
+      - id: goimports
+        name: goimports
+        entry: goimports -w
+        language: system
+        files: '\.go$'
+      - id: check
+        name: agent done-gate (just check)
+        entry: just check
+        language: system
+        pass_filenames: false
+        stages: [pre-push]
+
+# Notes:
+# - The pre-push hook intentionally runs the full Go done gate.
+# - Add `golangci-lint` as a pre-commit hook if you want faster feedback per
+#   commit; otherwise `just check` covers it at push time.

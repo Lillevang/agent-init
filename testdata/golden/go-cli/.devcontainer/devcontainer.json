@@ -1,0 +1,32 @@
+{
+  "name": "go-cli-agent",
+  "build": {
+    "dockerfile": "Dockerfile"
+  },
+  "remoteUser": "vscode",
+  "workspaceFolder": "/workspaces/go-cli",
+  "workspaceMount": "source=${localWorkspaceFolder},target=/workspaces/go-cli,type=bind,consistency=cached",
+
+  "mounts": [
+    // Mount sibling repos as peers of the workspace so the agent can `cd ../<other-repo>`
+    // and read them for context. Use `,readonly` unless cross-repo edits are intended.
+    // "source=${localEnv:HOME}/repos/tools/other-repo,target=/workspaces/other-repo,type=bind,readonly"
+  ],
+
+  "remoteEnv": {
+    "ANTHROPIC_API_KEY": "${localEnv:ANTHROPIC_API_KEY}",
+    "OPENAI_API_KEY": "${localEnv:OPENAI_API_KEY}",
+    "GH_TOKEN": "${localEnv:GH_TOKEN}"
+  },
+
+  "postCreateCommand": "/usr/local/bin/post-create.sh",
+
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "ms-azuretools.vscode-docker",
+        "esbenp.prettier-vscode"
+      ]
+    }
+  }
+}

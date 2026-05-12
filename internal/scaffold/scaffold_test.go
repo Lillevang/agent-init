@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"testing"
+	"testing/fstest"
 
 	"github.com/mikeschinkel/agent-init/internal/flavors"
 	"github.com/mikeschinkel/agent-init/internal/scaffold"
@@ -156,6 +157,66 @@ func TestRunForceRefusesToReplaceDirectory(t *testing.T) {
 	})
 	if err == nil {
 		t.Fatal("Run(force over directory) error = nil")
+	}
+}
+
+func TestRunRendersPathTemplate(t *testing.T) {
+	t.Parallel()
+	target := filepath.Join(t.TempDir(), "myproj")
+	flavor := flavors.Flavor{
+		Name:         "test-pathtmpl",
+		Templates:    pathTemplateFS(),
+		TemplateRoot: "templates",
+	}
+
+	err := scaffold.Run(context.Background(), scaffold.Options{
+		Flavor:  flavor,
+		Target:  target,
+		InitGit: false,
+	})
+	if err != nil {
+		t.Fatalf("Run() error = %v", err)
+	}
+	assertFileContains(t, filepath.Join(target, "cmd", "myproj", "main.go"), "package main")
+	if _, err := os.Stat(filepath.Join(target, "cmd", "{{.ProjectName}}")); !os.IsNotExist(err) {
+		t.Fatalf("literal {{.ProjectName}} directory was not substituted: %v", err)
+	}
+}
+
+func TestRunLayersFlavorOverCommon(t *testing.T) {
+	t.Parallel()
+	target := t.TempDir()
+	flavor := flavors.Flavor{
+		Name: "test-overlay",
+		Templates: fstest.MapFS{
+			"templates/.agent/scripts/check.sh": &fstest.MapFile{Data: []byte("FLAVOR"), Mode: 0o644},
+		},
+		TemplateRoot: "templates",
+		CommonTemplates: fstest.MapFS{
+			"templates/.agent/scripts/check.sh": &fstest.MapFile{Data: []byte("COMMON"), Mode: 0o644},
+			"templates/.agent/scripts/extra.sh": &fstest.MapFile{Data: []byte("ONLY-IN-COMMON"), Mode: 0o644},
+		},
+		CommonRoot: "templates",
+	}
+
+	err := scaffold.Run(context.Background(), scaffold.Options{
+		Flavor:  flavor,
+		Target:  target,
+		InitGit: false,
+	})
+	if err != nil {
+		t.Fatalf("Run() error = %v", err)
+	}
+	assertFileContains(t, filepath.Join(target, ".agent", "scripts", "check.sh"), "FLAVOR")
+	assertFileContains(t, filepath.Join(target, ".agent", "scripts", "extra.sh"), "ONLY-IN-COMMON")
+}
+
+func pathTemplateFS() fstest.MapFS {
+	return fstest.MapFS{
+		"templates/cmd/{{.ProjectName}}/main.go": &fstest.MapFile{
+			Data: []byte("package main\n"),
+			Mode: 0o644,
+		},
 	}
 }
 

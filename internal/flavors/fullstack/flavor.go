@@ -11,10 +11,7 @@ func Templates() embed.FS {
 
 func ExecutablePaths() []string {
 	return []string{
-		".agent/scripts/check.sh",
-		".agent/scripts/gen-codemap.sh",
 		".agent/scripts/record-feature.sh",
-		".agent/scripts/review.sh",
 		".devcontainer/post-create.sh",
 	}
 }
