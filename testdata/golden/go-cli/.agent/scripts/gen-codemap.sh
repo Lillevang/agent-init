@@ -9,15 +9,6 @@ shopt -s globstar nullglob
 REPO_ROOT="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
 cd "$REPO_ROOT"
 
-# Required tools. The codemap output is deterministic only if these are
-# present — silent fallbacks would make goldens flaky across environments.
-for tool in rg; do
-    if ! command -v "$tool" >/dev/null 2>&1; then
-        echo "ERROR: '$tool' is required for gen-codemap.sh. Install it (apt-get install ripgrep) and re-run." >&2
-        exit 1
-    fi
-done
-
 CODEMAP=".agent/CODEBASE.md"
 MARKER="<!-- HAND-WRITTEN BELOW — EDIT FREELY -->"
 
@@ -52,31 +43,53 @@ else
 fi
 
 # Detect a few common API-surface signals; this is intentionally rough.
-# --sort path keeps output deterministic across filesystems / CI runners.
+# Using grep + sort keeps output deterministic across filesystems / CI runners.
+# (We tried ripgrep first; its directory-walk order varies between rg versions
+# and gitignore parsing differs subtly between environments.)
+GREP_EXCLUDES=(
+    --exclude-dir=.git
+    --exclude-dir=node_modules
+    --exclude-dir=vendor
+    --exclude-dir=dist
+    --exclude-dir=build
+    --exclude-dir=target
+    --exclude-dir=__pycache__
+    --exclude-dir=.venv
+    --exclude-dir=venv
+)
+
 api_surface() {
     local found=0
     if compgen -G "**/*.rs" > /dev/null 2>&1; then
         echo "### Rust"
-        rg --no-heading -n --sort path '^pub (fn|struct|enum|trait|mod) ' --type rust 2>/dev/null \
+        grep -rEn --include='*.rs' "${GREP_EXCLUDES[@]}" '^pub (fn|struct|enum|trait|mod) ' . 2>/dev/null \
+            | sed 's|^\./||' \
+            | sort -t: -k1,1 -k2,2n \
             | head -100 || true
         found=1
     fi
     if compgen -G "**/*.go" > /dev/null 2>&1; then
         echo "### Go"
-        rg --no-heading -n --sort path '^func [A-Z]|^type [A-Z]' --type go 2>/dev/null \
+        grep -rEn --include='*.go' "${GREP_EXCLUDES[@]}" '^func [A-Z]|^type [A-Z]' . 2>/dev/null \
+            | sed 's|^\./||' \
+            | sort -t: -k1,1 -k2,2n \
             | head -100 || true
         found=1
     fi
     if compgen -G "**/*.ts" > /dev/null 2>&1 || compgen -G "**/*.tsx" > /dev/null 2>&1; then
         echo "### TypeScript"
-        rg --no-heading -n --sort path '^export (function|class|interface|type|const|enum) ' --type ts 2>/dev/null \
+        grep -rEn --include='*.ts' --include='*.tsx' "${GREP_EXCLUDES[@]}" '^export (function|class|interface|type|const|enum) ' . 2>/dev/null \
+            | sed 's|^\./||' \
+            | sort -t: -k1,1 -k2,2n \
             | head -100 || true
         found=1
     fi
     if compgen -G "**/*.py" > /dev/null 2>&1; then
         echo "### Python"
-        rg --no-heading -n --sort path '^(class |def )[A-Za-z_]' --type py 2>/dev/null \
+        grep -rEn --include='*.py' "${GREP_EXCLUDES[@]}" '^(class |def )[A-Za-z_]' . 2>/dev/null \
             | grep -v '^.*:def _' \
+            | sed 's|^\./||' \
+            | sort -t: -k1,1 -k2,2n \
             | head -100 || true
         found=1
     fi
