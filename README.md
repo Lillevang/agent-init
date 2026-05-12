@@ -1,10 +1,16 @@
 # agent-init
 
-`agent-init` is a Go CLI that scaffolds repositories for sandboxed agentic development with Codex, Claude Code, or similar tools. It writes an agent-ready devcontainer, `AGENTS.md`/`CLAUDE.md`, a project codemap, correction notes, check/review scripts, a `Justfile`, and pre-commit wiring tuned to a selected flavor.
+A Go CLI that scaffolds repositories for sandboxed agentic development with Codex, Claude Code, or similar tools. It writes a devcontainer, an `AGENTS.md`/`CLAUDE.md` pair, a codemap, correction notes, check and review scripts, a `Justfile`, and pre-commit wiring — tuned to a chosen flavor.
 
-The current implemented flavor is:
+## Flavors
 
-- `fullstack` — TypeScript/Node fullstack projects with OpenAPI client generation and Playwright recording support.
+| Flavor | What it scaffolds |
+|--------|-------------------|
+| `fullstack` | TypeScript/Node frontend + backend with Playwright recording and OpenAPI client generation. |
+| `go-cli` | Go command-line tool with `cmd/{{.ProjectName}}/` (path-templated), `internal/`, cross-build via Justfile, and `golangci-lint`. |
+| `go-backend` | Go HTTP backend with `cmd/server`, `internal/api` router, a `/healthz` handler, and `run-dev` / `cross-build` recipes. |
+
+Planned: `terraform`, `ansible`.
 
 ## Build
 
@@ -18,7 +24,7 @@ For a local install:
 go install ./cmd/agent-init
 ```
 
-Release builds should set version metadata:
+Release builds set version metadata via `-ldflags`:
 
 ```bash
 go build \
@@ -34,22 +40,19 @@ agent-init list-flavors
 agent-init version
 ```
 
-Defaults:
-
-- Flavor: `fullstack`
-- Target directory: `.`
+Defaults: flavor `fullstack`, target `.`.
 
 Examples:
 
 ```bash
-# Scaffold the current repo with the default fullstack flavor.
+# Scaffold the current repo with the default flavor.
 agent-init init
 
-# Scaffold a new fullstack repo.
-agent-init init fullstack ./my-app
+# Scaffold a new Go CLI repo. The cmd/ subdirectory is named after the target.
+agent-init init go-cli ./my-tool
 
-# Backward-compatible shorthand also works.
-agent-init ./my-app
+# Path syntax also works without `init`.
+agent-init ./my-tool
 ```
 
 Flags for `init`:
@@ -60,7 +63,7 @@ Flags for `init`:
 
 ## What It Writes
 
-For the `fullstack` flavor, the CLI writes:
+Every flavor produces this skeleton:
 
 ```text
 your-project/
@@ -71,8 +74,9 @@ your-project/
 │   ├── CODEBASE.md
 │   ├── CORRECTIONS.md
 │   └── scripts/
-├── apis/
-├── clients/
+│       ├── check.sh
+│       ├── gen-codemap.sh
+│       └── review.sh
 ├── AGENTS.md -> .agent/AGENTS.md
 ├── CLAUDE.md -> .agent/CLAUDE.md
 ├── .pre-commit-config.yaml
@@ -81,23 +85,37 @@ your-project/
 └── README.agent.md
 ```
 
-The fullstack `Justfile` runs npm-based formatting, linting, type checking, unit tests, OpenAPI generation, and Playwright tests when the target project has the corresponding files or npm scripts. Empty repos remain stub-friendly so the scaffold can be installed before application code exists.
+On top of that skeleton, each flavor adds its own files:
+
+- `fullstack` — `apis/`, `clients/`, an OpenAPI-aware Justfile, and a Playwright `record-feature.sh` script.
+- `go-cli` — `cmd/{{.ProjectName}}/main.go` (rendered to your target dir name), `internal/version/`, `go.mod`, and a Justfile with `build`, `cross-build`.
+- `go-backend` — `cmd/server/main.go`, `internal/api/handlers.go` + tests, `go.mod`, and a Justfile with `run-dev`, `build`, `cross-build`.
+
+The Justfile `check` recipe runs whatever steps the scaffolded project supports; missing recipes are skipped silently. Empty repos remain installable before any application code exists.
+
+## How templating works
+
+- **Content templating** — files with a `.tmpl` extension pass through `text/template`. `{{.ProjectName}}` is the project's directory name. Files without `.tmpl` are copied verbatim, so configs that legitimately contain `{{ }}` (Helm, Ansible, GitHub Actions) work unchanged.
+- **Path templating** — file paths also pass through `text/template`. A template path like `cmd/{{.ProjectName}}/main.go.tmpl` renders to `cmd/my-tool/main.go`.
+- **Common overlay** — files shared across every flavor live in `internal/flavors/common/templates/`. The scaffold engine walks the flavor first, then layers common in. A flavor overrides a common file by shipping its own copy at the same relative path.
+
+See [`docs/`](./docs/) for per-feature details.
 
 ## Development
 
 Inside this repo:
 
 ```bash
-just check
-just smoke-test
+just check        # full done-gate: fmt, lint, vet, test, cross-build, smoke-test
+just smoke-test   # scaffold every flavor + run its check.sh + diff against the golden
 ```
 
-The devcontainer installs Go, `goimports`, `golangci-lint`, `just`, pre-commit, Node tooling for the embedded fullstack flavor, and the agent CLIs.
+`just smoke-test-update` regenerates golden snapshots under `testdata/golden/<flavor>/` after intentional template changes.
 
-The old bash implementation has been removed. The embedded flavor templates under `internal/flavors/<flavor>/templates/` are now the source of truth for scaffolded output.
+The devcontainer installs Go, `goimports`, `golangci-lint`, `just`, pre-commit, the agent CLIs, and the Node tooling the fullstack flavor smoke-tests against.
 
-## CI And Releases
+## CI and releases
 
-Pull requests to `main` run `just check`, which covers codemap regeneration, formatting, linting, `go vet`, tests, cross-builds, and the fullstack scaffold smoke test.
+Pull requests to `main` run `just check`, which covers codemap regeneration, formatting, linting, `go vet`, tests, cross-builds, and the full multi-flavor smoke test.
 
-Pushes to `main` run the same gate, then build Linux binaries for `amd64` and `arm64`, publish tarballs plus SHA-256 checksums, and create a GitHub release tagged as `build-<run-number>`. The release build matrix is ready for Windows entries when that target enters scope.
+Pushes to `main` run the same gate, then build Linux binaries for `amd64` and `arm64`, publish tarballs plus SHA-256 checksums, and create a GitHub release tagged `build-<run-number>`. The release matrix is structured so Windows can be added when that target enters scope.

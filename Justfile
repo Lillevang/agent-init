@@ -47,32 +47,40 @@ cross-build:
     GOOS=linux GOARCH=amd64 go build -o /tmp/agent-init-linux-amd64 ./cmd/agent-init
     GOOS=darwin GOARCH=arm64 go build -o /tmp/agent-init-darwin-arm64 ./cmd/agent-init
 
-# Smoke-test scaffold output for the fullstack flavor
+# Smoke-test scaffold output for every registered flavor
 smoke-test:
     #!/usr/bin/env bash
     set -euo pipefail
     tmp=$(mktemp -d)
     trap 'rm -rf "$tmp"' EXIT
-    target="$tmp/fullstack"
-    go run ./cmd/agent-init init --no-git fullstack "$target"
-    test -f "$target/.agent/AGENTS.md"
-    test -L "$target/AGENTS.md"
-    test -x "$target/.agent/scripts/check.sh"
-    (cd "$target" && just check)
-    diff -ruN testdata/golden/fullstack "$target"
+    flavors=$(go run ./cmd/agent-init list-flavors | awk '{print $1}')
+    for flavor in $flavors; do
+        echo "→ smoke-testing flavor: $flavor"
+        target="$tmp/$flavor"
+        go run ./cmd/agent-init init --no-git "$flavor" "$target"
+        test -f "$target/.agent/AGENTS.md"
+        test -L "$target/AGENTS.md"
+        test -x "$target/.agent/scripts/check.sh"
+        (cd "$target" && just check)
+        diff -ruN "testdata/golden/$flavor" "$target"
+    done
 
-# Regenerate the fullstack smoke-test golden snapshot
+# Regenerate every flavor's smoke-test golden snapshot
 smoke-test-update:
     #!/usr/bin/env bash
     set -euo pipefail
     tmp=$(mktemp -d)
     trap 'rm -rf "$tmp"' EXIT
-    target="$tmp/fullstack"
-    go run ./cmd/agent-init init --no-git fullstack "$target"
-    (cd "$target" && just check)
-    rm -rf testdata/golden/fullstack
+    flavors=$(go run ./cmd/agent-init list-flavors | awk '{print $1}')
     mkdir -p testdata/golden
-    cp -a "$target" testdata/golden/fullstack
+    for flavor in $flavors; do
+        echo "→ regenerating golden for flavor: $flavor"
+        target="$tmp/$flavor"
+        go run ./cmd/agent-init init --no-git "$flavor" "$target"
+        (cd "$target" && just check)
+        rm -rf "testdata/golden/$flavor"
+        cp -a "$target" "testdata/golden/$flavor"
+    done
 
 # Invoke reviewer agent
 review:

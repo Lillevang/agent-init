@@ -78,9 +78,34 @@ func prepareTarget(target string, dryRun bool) (string, error) {
 }
 
 func writeTemplates(opts Options, target string, data templateData, out io.Writer) error {
-	rootFS, err := fs.Sub(opts.Flavor.Templates, opts.Flavor.TemplateRoot)
+	claimed := map[string]bool{}
+	layers := []struct {
+		fsys fs.FS
+		root string
+	}{
+		{opts.Flavor.Templates, opts.Flavor.TemplateRoot},
+	}
+	if opts.Flavor.CommonTemplates != nil {
+		layers = append(layers, struct {
+			fsys fs.FS
+			root string
+		}{opts.Flavor.CommonTemplates, opts.Flavor.CommonRoot})
+	}
+	for _, layer := range layers {
+		if layer.fsys == nil {
+			continue
+		}
+		if err := walkLayer(opts, layer.fsys, layer.root, target, data, claimed, out); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func walkLayer(opts Options, fsys fs.FS, root, target string, data templateData, claimed map[string]bool, out io.Writer) error {
+	rootFS, err := fs.Sub(fsys, root)
 	if err != nil {
-		return fmt.Errorf("opening template root: %w", err)
+		return fmt.Errorf("opening template root %q: %w", root, err)
 	}
 	return fs.WalkDir(rootFS, ".", func(path string, entry fs.DirEntry, err error) error {
 		if err != nil {
@@ -94,6 +119,14 @@ func writeTemplates(opts Options, target string, data templateData, out io.Write
 			return fmt.Errorf("reading template %s: %w", path, err)
 		}
 		rel := strings.TrimSuffix(path, ".tmpl")
+		rel, err = renderPath(rel, data)
+		if err != nil {
+			return fmt.Errorf("rendering path %s: %w", path, err)
+		}
+		if claimed[rel] {
+			return nil
+		}
+		claimed[rel] = true
 		rendered, err := render(path, content, data)
 		if err != nil {
 			return err
@@ -156,6 +189,21 @@ func render(path string, content []byte, data templateData) ([]byte, error) {
 		return nil, fmt.Errorf("rendering template %s: %w", path, err)
 	}
 	return out.Bytes(), nil
+}
+
+func renderPath(rel string, data templateData) (string, error) {
+	if !strings.Contains(rel, "{{") {
+		return rel, nil
+	}
+	tmpl, err := template.New("path").Parse(rel)
+	if err != nil {
+		return "", err
+	}
+	var out bytes.Buffer
+	if err := tmpl.Execute(&out, data); err != nil {
+		return "", err
+	}
+	return out.String(), nil
 }
 
 func createSymlinks(opts Options, target string, out io.Writer) error {

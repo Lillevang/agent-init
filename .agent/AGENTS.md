@@ -6,19 +6,22 @@ You are working inside a sandboxed dev container. Your filesystem access is boun
 
 ## Project context
 
-`agent-init` is a Go CLI that scaffolds repositories for sandboxed agentic development. A user runs `agent-init [flavor]` inside a repo; the tool drops in a devcontainer, a `Justfile`, a `.pre-commit-config.yaml`, an `AGENTS.md`/`CLAUDE.md`, a `CODEBASE.md`, a `CORRECTIONS.md`, helper scripts (`check.sh`, `review.sh`, `gen-codemap.sh`, `record-feature.sh`), and supporting files — all tuned to a chosen project flavor.
+`agent-init` is a Go CLI that scaffolds repositories for sandboxed agentic development. A user runs `agent-init [flavor]` inside a repo; the tool drops in a devcontainer, a `Justfile`, a `.pre-commit-config.yaml`, an `AGENTS.md`/`CLAUDE.md`, a `CODEBASE.md`, a `CORRECTIONS.md`, helper scripts (`check.sh`, `review.sh`, `gen-codemap.sh`), and supporting files — all tuned to a chosen project flavor.
 
-**Flavors** are the central abstraction. A flavor is a named bundle of templates + metadata that says "this is what a $TYPE project needs." Initial flavors:
+**Flavors** are the central abstraction. A flavor is a named bundle of templates + metadata that says "this is what a $TYPE project needs." Live flavors:
 
 - `fullstack` — TypeScript/Node frontend + backend, Playwright recording, OpenAPI client generation.
+- `go-cli` — Go command-line tool. `cmd/{{.ProjectName}}/main.go` (path-templated), `internal/`, cross-build via Justfile, `golangci-lint`.
+- `go-backend` — Go HTTP backend. `cmd/server` + `internal/api` with a `/healthz` handler, `run-dev` and `cross-build` recipes.
+
+Planned:
+
 - `terraform` — Terraform-heavy IaC repos. Different lint/format tooling (`terraform fmt`, `tflint`, `tfsec`/`trivy`), no Playwright, codemap surfaces modules and variables instead of code symbols.
 - `ansible` — Ansible-heavy IaC repos. `ansible-lint`, `yamllint`, role/playbook discovery in the codemap.
 
 **Stack:** Go (toolchain version pinned in `go.mod`). Standard library first; `cobra` for CLI argument parsing is acceptable if subcommand complexity warrants it, otherwise `flag` is fine. Templates are embedded into the binary via `embed.FS` — the shipped binary must be self-contained.
 
-**Entry point:** `cmd/agent-init/main.go`. Subcommand handlers live in `internal/cli/`. Flavor definitions and templates live in `internal/flavors/<flavor-name>/`.
-
-**Current phase:** Phase 1 — Go CLI with the `fullstack` flavor. The old bash prototype has been removed; the Go implementation and embedded flavor templates are the source of truth. Phase 2 adds `terraform` and `ansible` flavors.
+**Entry point:** `cmd/agent-init/main.go`. Subcommand handlers live in `internal/cli/`. Flavor definitions and templates live in `internal/flavors/<flavor-name>/`. Files shared across every flavor live in `internal/flavors/common/templates/` and are layered in by the scaffold engine.
 
 ## The done-gate
 
@@ -97,8 +100,10 @@ Global gitignore support is planned but not exposed until implemented. When adde
 
 Templates are embedded via `//go:embed all:templates`. Important constraints:
 
-- **Token substitution uses `{{.ProjectName}}`-style Go template syntax for `.tmpl` files only.** Files without `.tmpl` extension are copied verbatim. This matters because many shell scripts and config files legitimately contain `{{ }}` (Ansible, Helm, GitHub Actions). Renaming to `.tmpl` is the explicit opt-in to templating.
-- **Executable bits are not preserved by `embed.FS`.** The scaffold engine has an explicit list of paths that should be marked executable on write. Add new scripts to that list.
+- **Content substitution uses `{{.ProjectName}}`-style Go template syntax for `.tmpl` files only.** Files without `.tmpl` extension are copied verbatim. This matters because many shell scripts and config files legitimately contain `{{ }}` (Ansible, Helm, GitHub Actions). Renaming to `.tmpl` is the explicit opt-in to content templating.
+- **Path templating** applies to every file, regardless of `.tmpl` extension. A template path like `cmd/{{.ProjectName}}/main.go.tmpl` renders to `cmd/myproject/main.go`. Use this when a directory name should reflect the project name. Gotcha: a `cmd/{{.ProjectName}}/` directory containing a plain `.go` file breaks `go build ./...` in this repo because Go tooling tries to read the literal `{` as a package path. The fix is to give the file a `.tmpl` extension — that hides it from Go tooling, and `text/template` parses the no-op content fine.
+- **Common overlay.** Every flavor is layered on top of `internal/flavors/common/templates/`. The scaffold engine walks the flavor first, then walks common as a fallback. A flavor overrides a common file by shipping its own copy at the same relative path. Don't copy a common file into a flavor "just to be safe" — if you need to change shared behavior for everyone, change it in `common/`.
+- **Executable bits are not preserved by `embed.FS`.** The scaffold engine has an explicit list of paths that should be marked executable on write. Common scripts are listed in `common.ExecutablePaths()`; flavor-specific scripts go in the flavor's own list.
 - **Symlinks aren't representable in `embed.FS`.** Symlinks (`AGENTS.md` ↔ `CLAUDE.md`, top-level → `.agent/*`) are created by the scaffold engine after file write, not stored as files.
 
 ### Naming
@@ -118,6 +123,34 @@ Templates are embedded via `//go:embed all:templates`. Important constraints:
 - Standard library first. Keep the Go CLI lean unless a dependency clearly pays for itself.
 - Acceptable additions without asking: `github.com/spf13/cobra`, `github.com/spf13/pflag` (if cobra is chosen).
 - Anything else: ask first. Justify in the PR. Pin via `go.mod`.
+
+## Documentation
+
+This repo has two documentation surfaces. Both are part of the implementation; neither is optional.
+
+### Per-feature docs (`./docs/`)
+
+Every user-visible feature has an entry under `./docs/`. A "feature" here means a CLI subcommand, a flag, a flavor, an engine capability (path templating, layer overlay, the done-gate), or any behavior a downstream user could rely on. Internal refactors don't need a docs entry.
+
+Before declaring a feature task complete, you must:
+
+- **Add** a doc entry if the feature has none.
+- **Verify** the entry still matches current behavior if one exists. Out-of-date docs are worse than missing ones — they actively mislead.
+
+Doc files are short. One page or less. Reference source files and tests rather than duplicating them; the source is the truth, the doc is a map into it. Use `file:line` references where helpful so links stay machine-checkable.
+
+The convention and the current backlog of features needing docs live in [`./docs/README.md`](../docs/README.md).
+
+### Project README
+
+The root `README.md` is the first thing a new visitor reads. Keep it:
+
+- **Accurate** — when you ship a flavor or a flag, update the README in the same commit. Stale READMEs are silent bugs.
+- **Plain prose** — no emojis. No marketing adjectives (*powerful, elegant, robust, seamless, comprehensive, lightweight, blazing fast*). No filler verbs (*leverage, delve into, embark on, facilitate, unlock*). No tagline phrasing like *"X isn't just Y, it's Z"* or *"the modern way to ..."*.
+- **Short sentences** — direct, not hedged. "Foo does X" beats "Foo is a tool that can be used to perform X".
+- **Scannable structure** — headings match the user's mental model: Build, Usage, What It Writes, Development, CI.
+
+After editing the README, read it top to bottom as if you'd never seen the project. If it reads like a press release or like an LLM trying to sound enthusiastic, rewrite it.
 
 ## Testing
 
@@ -139,13 +172,14 @@ This project does not consume external APIs and has no `apis/` directory. The `a
 When adding a new flavor:
 
 1. Create `internal/flavors/<name>/`.
-2. Add a `flavor.go` exposing the flavor's metadata (display name, description, required tools, recommended Justfile recipes).
-3. Add `templates/` with the file tree to scaffold.
-4. Register the flavor in `internal/flavors/registry.go`.
-5. Add a golden snapshot under `testdata/golden/<name>/`.
-6. Add a smoke-test entry that scaffolds + runs `just check` on the output.
+2. Add a `flavor.go` exposing `Templates()` (via `//go:embed all:templates`) and `ExecutablePaths()` for any flavor-specific scripts.
+3. Add `templates/` with files that are *unique* to this flavor. Do not duplicate anything that already lives in `internal/flavors/common/templates/` — the engine layers common in for you.
+4. Register the flavor in `internal/flavors/registry.go`, wiring `common.Templates()` as `CommonTemplates` and prepending `common.ExecutablePaths()` to the flavor's own executable list.
+5. Add the flavor name to the slice in `test/golden_test.go` so the golden test exercises it.
+6. Generate the golden snapshot with `just smoke-test-update` — the recipe iterates `agent-init list-flavors`, so no Justfile change is needed.
+7. Add a docs entry under `./docs/` describing the new flavor (see [Documentation](#documentation)).
 
-Flavors should share what's genuinely common (the `.agent/` skeleton, the devcontainer base) via composition, not copy-paste. The current pattern: a `common/` template tree that all flavors include, plus a flavor-specific overlay. Resolve conflicts in favor of the flavor-specific file.
+Resolve overlay conflicts in favor of the flavor-specific file. The engine handles that automatically by tracking which relative paths each layer claimed.
 
 ## What you should NOT do
 
@@ -177,6 +211,15 @@ After completing a non-trivial change, run:
 ```
 
 This invokes a separate agent that reviews your diff against this file, `CORRECTIONS.md`, and `CODEBASE.md`. Output lands in `.agent/REVIEW.md`. Read it. Address legitimate findings.
+
+## Skills
+
+Project-scoped Claude Code skills live under `.claude/skills/<name>/SKILL.md` and are invoked with `/<name>`. Current skills:
+
+- `/add-flavor` — walks the flavor-authoring checklist end-to-end (create package, write `flavor.go`, populate templates, register, golden, docs).
+- `/feature-doc` — adds or refreshes a doc entry under `./docs/` and updates the backlog. The mechanism that drains the backlog one feature at a time.
+
+If you find yourself doing repetitive work that neither skill covers, propose a new skill rather than encoding the procedure as ad-hoc instructions in this file. A skill is justified when the workflow is multi-step, error-prone, and likely to recur.
 
 ## Project-specific notes
 

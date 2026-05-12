@@ -35,7 +35,7 @@ fi
 
 # Pick a directory tree tool
 if command -v tree >/dev/null 2>&1; then
-    TREE_CMD="tree -L 3 -I 'node_modules|target|dist|.git|.next|__pycache__|.venv|venv|build|.agent|clients' --noreport ."
+    TREE_CMD="tree -L 3 --charset utf-8 -I 'node_modules|target|dist|.git|.next|__pycache__|.venv|venv|build|.agent|clients' --noreport ."
 elif command -v fd >/dev/null 2>&1; then
     TREE_CMD="fd --max-depth 3 --hidden --exclude .git --exclude node_modules --exclude target --exclude dist --exclude .agent --exclude clients"
 else

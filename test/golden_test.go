@@ -12,24 +12,30 @@ import (
 	"github.com/mikeschinkel/agent-init/internal/testflags"
 )
 
-func TestFullstackGolden(t *testing.T) {
-	target := filepath.Join(t.TempDir(), "fullstack")
+func TestFlavorGolden(t *testing.T) {
+	flavors := []string{"fullstack", "go-backend", "go-cli"}
 	binary := buildAgentInit(t)
-	runAgentInit(t, binary, "init", "--no-git", "fullstack", target)
-	runGeneratedCodemap(t, target)
+	for _, flavor := range flavors {
+		flavor := flavor
+		t.Run(flavor, func(t *testing.T) {
+			target := filepath.Join(t.TempDir(), flavor)
+			runAgentInit(t, binary, "init", "--no-git", flavor, target)
+			runGeneratedCodemap(t, target)
 
-	golden := filepath.Join("..", "testdata", "golden", "fullstack")
-	if *testflags.Update {
-		if err := os.RemoveAll(golden); err != nil {
-			t.Fatalf("remove golden: %v", err)
-		}
-		if err := copyTree(target, golden); err != nil {
-			t.Fatalf("update golden: %v", err)
-		}
-		return
-	}
-	if err := compareTrees(golden, target); err != nil {
-		t.Fatal(err)
+			golden := filepath.Join("..", "testdata", "golden", flavor)
+			if *testflags.Update {
+				if err := os.RemoveAll(golden); err != nil {
+					t.Fatalf("remove golden: %v", err)
+				}
+				if err := copyTree(target, golden); err != nil {
+					t.Fatalf("update golden: %v", err)
+				}
+				return
+			}
+			if err := compareTrees(golden, target); err != nil {
+				t.Fatal(err)
+			}
+		})
 	}
 }
 
