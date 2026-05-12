@@ -231,8 +231,6 @@ Next steps:
   4. Run:  devcontainer up --workspace-folder %s
   5. Run:  devcontainer exec --workspace-folder %s bash
   6. Inside the container: just check
-
-Helix on the host still works; the repo is bind-mounted into the container.
 `, target, target, target)
 }
 

@@ -2,6 +2,7 @@ package cli
 
 import (
 	"context"
+	"errors"
 	"flag"
 	"fmt"
 	"io"
@@ -61,6 +62,15 @@ func looksLikeTarget(arg string) bool {
 		strings.ContainsAny(arg, `/\`)
 }
 
+func (a App) unknownFlavorError(name string) error {
+	flavors := a.registry.List()
+	known := make([]string, 0, len(flavors))
+	for _, f := range flavors {
+		known = append(known, f.Name)
+	}
+	return fmt.Errorf("unknown flavor %q (known: %s)", name, strings.Join(known, ", "))
+}
+
 func (a App) runInit(ctx context.Context, args []string) error {
 	flags := flag.NewFlagSet("init", flag.ContinueOnError)
 	flags.SetOutput(a.errOut)
@@ -68,6 +78,9 @@ func (a App) runInit(ctx context.Context, args []string) error {
 	noGit := flags.Bool("no-git", false, "skip git init when target is not already a repo")
 	dryRun := flags.Bool("dry-run", false, "print what would happen without writing files")
 	if err := flags.Parse(args); err != nil {
+		if errors.Is(err, flag.ErrHelp) {
+			return nil
+		}
 		return err
 	}
 	flavorName := "fullstack"
@@ -75,10 +88,13 @@ func (a App) runInit(ctx context.Context, args []string) error {
 	switch flags.NArg() {
 	case 0:
 	case 1:
-		if _, err := a.registry.Get(flags.Arg(0)); err == nil {
-			flavorName = flags.Arg(0)
+		arg := flags.Arg(0)
+		if _, err := a.registry.Get(arg); err == nil {
+			flavorName = arg
+		} else if looksLikeTarget(arg) {
+			target = arg
 		} else {
-			target = flags.Arg(0)
+			return a.unknownFlavorError(arg)
 		}
 	case 2:
 		flavorName = flags.Arg(0)
@@ -88,7 +104,7 @@ func (a App) runInit(ctx context.Context, args []string) error {
 	}
 	flavor, err := a.registry.Get(flavorName)
 	if err != nil {
-		return err
+		return a.unknownFlavorError(flavorName)
 	}
 	return scaffold.Run(ctx, scaffold.Options{
 		Flavor:  flavor,
