@@ -1,190 +1,103 @@
 # agent-init
 
-Scaffolds a repository for sandboxed agentic development with Claude Code, Codex, or similar tools. Drops in a devcontainer, an `AGENTS.md`/`CLAUDE.md`, a check-gate script, codemap scaffolding, a corrections file, a reviewer-agent invocation, OpenAPI client generation hooks, Playwright recording, and pre-commit wiring.
+`agent-init` is a Go CLI that scaffolds repositories for sandboxed agentic development with Codex, Claude Code, or similar tools. It writes an agent-ready devcontainer, `AGENTS.md`/`CLAUDE.md`, a project codemap, correction notes, check/review scripts, a `Justfile`, and pre-commit wiring tuned to a selected flavor.
 
-The goal is: clone a repo, run `agent-init`, edit a few files, then let the agent loose inside a container with bounded blast radius.
+The current implemented flavor is:
 
-## What it sets up
+- `fullstack` — TypeScript/Node fullstack projects with OpenAPI client generation and Playwright recording support.
 
-```
-your-project/
-├── .devcontainer/
-│   ├── devcontainer.json        # Podman/Docker compatible
-│   └── Dockerfile               # base image + agents installed
-├── .agent/
-│   ├── AGENTS.md                # canonical agent instructions (Codex)
-│   ├── CLAUDE.md                # symlink → AGENTS.md
-│   ├── CODEBASE.md              # codemap (partly auto-generated)
-│   ├── CORRECTIONS.md           # "don't do this" file
-│   ├── REVIEW.md                # latest reviewer output (gitignored)
-│   └── scripts/
-│       ├── check.sh             # the agent's "am I done" gate
-│       ├── review.sh            # invoke reviewer agent
-│       ├── gen-codemap.sh       # regenerate auto sections of CODEBASE.md
-│       └── record-feature.sh    # playwright + ffmpeg helper
-├── apis/                        # OpenAPI specs go here
-├── clients/                     # generated clients land here
-├── AGENTS.md → .agent/AGENTS.md # top-level symlinks so tools find them
-├── CLAUDE.md → .agent/CLAUDE.md
-├── .pre-commit-config.yaml
-├── Justfile
-├── .gitignore
-└── README.agent.md              # project-level doc (this is for the user)
-```
-
-Sibling repos (for monorepo-style cross-repo browsing) are mounted as peers of
-the workspace at `/workspaces/<other-repo>`, not under this tree — see below.
-
-## Dependencies
-
-You install these on the **host** (Fedora WSL or Fedora bare-metal). Inside the container, the Dockerfile handles its own dependencies.
-
-### Required
-
-**1. Podman** (or Docker, but Podman is the Fedora-native choice)
+## Build
 
 ```bash
-sudo dnf install -y podman podman-docker
-systemctl --user enable --now podman.socket
-echo 'export DOCKER_HOST=unix://$XDG_RUNTIME_DIR/podman/podman.sock' >> ~/.bashrc
+go build -o agent-init ./cmd/agent-init
 ```
 
-On Fedora WSL, ensure systemd is enabled. Add to `/etc/wsl.conf`:
-```ini
-[boot]
-systemd=true
-```
-Then `wsl --shutdown` from Windows and restart the distro.
-
-**2. Node.js + the devcontainer CLI**
+For a local install:
 
 ```bash
-sudo dnf install -y nodejs npm
-npm config set prefix ~/.local
-echo 'export PATH=$HOME/.local/bin:$PATH' >> ~/.bashrc
-npm install -g @devcontainers/cli
+go install ./cmd/agent-init
 ```
 
-Verify: `devcontainer --version`
-
-**3. just** (command runner)
+Release builds should set version metadata:
 
 ```bash
-sudo dnf install -y just
+go build \
+  -ldflags "-X main.commit=$(git rev-parse --short HEAD) -X main.buildDate=$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+  -o agent-init ./cmd/agent-init
 ```
-If your Fedora is older and doesn't have `just` in dnf:
-```bash
-curl --proto '=https' --tlsv1.2 -sSf https://just.systems/install.sh | bash -s -- --to ~/.local/bin
-```
-
-**4. git** (you have it, just listing)
-
-```bash
-sudo dnf install -y git
-```
-
-### Optional but recommended
-
-**5. pre-commit** — runs locally only if you want host-side hooks too. Inside the container it's installed automatically.
-
-```bash
-pipx install pre-commit
-# or: sudo dnf install -y pre-commit
-```
-
-**6. GitHub CLI** — if you want the agent to interact with PRs/issues.
-
-```bash
-sudo dnf install -y gh
-gh auth login
-```
-
-**7. Helix** — your editor of choice for inspecting code from the host terminal.
-
-```bash
-sudo dnf install -y helix
-```
-
-## Installing agent-init itself
-
-```bash
-git clone <this-repo> ~/.local/share/agent-init
-ln -s ~/.local/share/agent-init/agent-init ~/.local/bin/agent-init
-```
-
-Make sure `~/.local/bin` is on your `PATH`.
 
 ## Usage
 
 ```bash
-# In an existing or empty repo:
-cd my-project
-agent-init
-
-# Or scaffold into a fresh directory:
-agent-init my-new-project
-cd my-new-project
+agent-init init [flavor] [target-dir]
+agent-init list-flavors
+agent-init version
 ```
 
-Flags:
-- `--force` — overwrite existing files (default: skip)
-- `--no-git` — don't `git init` if not already a repo
+Defaults:
 
-After scaffolding:
+- Flavor: `fullstack`
+- Target directory: `.`
 
-1. Read `README.agent.md` in the project for project-side documentation.
-2. Edit `.agent/AGENTS.md` to describe **this project's** stack, conventions, and quirks. The template is generic.
-3. Edit `.devcontainer/Dockerfile` to add language toolchains you need (Rust, Go, Python, etc.).
-4. `devcontainer up --workspace-folder .`
-5. `devcontainer exec --workspace-folder . bash` and run `just check` to confirm the gate works.
-6. Inside the container, set your API keys and start the agent:
-   ```bash
-   export ANTHROPIC_API_KEY=...
-   claude
-   ```
+Examples:
 
-## Mounting sibling repos (fake monorepo)
+```bash
+# Scaffold the current repo with the default fullstack flavor.
+agent-init init
 
-Sibling repos are mounted as **peers** of the workspace, so the agent sees a
-flat layout under `/workspaces/`:
+# Scaffold a new fullstack repo.
+agent-init init fullstack ./my-app
 
-```
-/workspaces/
-├── your-project/        ← workspace root (read-write)
-├── shared-lib/          ← sibling, read-only
-└── other-service/       ← sibling, read-only
+# Backward-compatible shorthand also works.
+agent-init ./my-app
 ```
 
-Edit `.devcontainer/devcontainer.json` and add to `mounts`:
+Flags for `init`:
 
-```json
-"mounts": [
-  "source=${localEnv:HOME}/repos/tools/shared-lib,target=/workspaces/shared-lib,type=bind,readonly"
-]
+- `--force` — overwrite existing files instead of skipping them.
+- `--no-git` — skip `git init` when the target is not already a repository.
+- `--dry-run` — print planned writes without changing files.
+
+## What It Writes
+
+For the `fullstack` flavor, the CLI writes:
+
+```text
+your-project/
+├── .devcontainer/
+├── .agent/
+│   ├── AGENTS.md
+│   ├── CLAUDE.md -> AGENTS.md
+│   ├── CODEBASE.md
+│   ├── CORRECTIONS.md
+│   └── scripts/
+├── apis/
+├── clients/
+├── AGENTS.md -> .agent/AGENTS.md
+├── CLAUDE.md -> .agent/CLAUDE.md
+├── .pre-commit-config.yaml
+├── Justfile
+├── .gitignore
+└── README.agent.md
 ```
 
-`readonly` is the safe default — drop it only when cross-repo edits are
-intentional. The agent reaches siblings with `cd ../shared-lib`. Edits to
-non-readonly mounts go into the source repo's working tree on the host, not
-this repo's git history.
+The fullstack `Justfile` runs npm-based formatting, linting, type checking, unit tests, OpenAPI generation, and Playwright tests when the target project has the corresponding files or npm scripts. Empty repos remain stub-friendly so the scaffold can be installed before application code exists.
 
-## What this tool does NOT do
+## Development
 
-- It doesn't pick a language stack for you. Edit the Dockerfile.
-- It doesn't generate the *prose* of `CODEBASE.md` for an existing codebase — only the directory tree section. You write the rest, or have an agent do an initial pass.
-- It doesn't configure SpecKit. Add it manually if/when a feature is large enough to warrant it.
-- It doesn't install agent CLIs on the host. They run inside the container.
+Inside this repo:
 
-## Updating an existing scaffolded project
+```bash
+just check
+just smoke-test
+```
 
-`agent-init --force` overwrites all template files, including any local edits to `AGENTS.md`. **Don't do this casually.** The intended workflow:
+The devcontainer installs Go, `goimports`, `golangci-lint`, `just`, pre-commit, Node tooling for the embedded fullstack flavor, and the agent CLIs.
 
-1. Keep your `agent-init` template repo as the source of truth.
-2. When you improve a template, copy the relevant file into your project manually.
-3. Or: keep project-specific overrides at the bottom of `AGENTS.md` under a clearly marked section, and only re-pull the top half.
+The old bash implementation has been removed. The embedded flavor templates under `internal/flavors/<flavor>/templates/` are now the source of truth for scaffolded output.
 
-A future version may do three-way merging. It does not today.
+## CI And Releases
 
-## License
+Pull requests to `main` run `just check`, which covers codemap regeneration, formatting, linting, `go vet`, tests, cross-builds, and the fullstack scaffold smoke test.
 
-Whatever you want. Make it yours.
+Pushes to `main` run the same gate, then build Linux binaries for `amd64` and `arm64`, publish tarballs plus SHA-256 checksums, and create a GitHub release tagged as `build-<run-number>`. The release build matrix is ready for Windows entries when that target enters scope.

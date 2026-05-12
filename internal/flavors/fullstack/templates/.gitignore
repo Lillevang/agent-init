@@ -1,0 +1,41 @@
+# Agent artifacts
+.agent/REVIEW.md
+.agent/recordings/
+.agent/sessions/
+.agent/*.log
+
+# Generated clients (uncomment if you don't want them committed)
+# clients/
+
+# OS / editor
+.DS_Store
+*.swp
+*.swo
+.idea/
+.vscode/settings.json
+
+# Secrets — extra paranoia
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# Common build outputs
+node_modules/
+dist/
+build/
+target/
+__pycache__/
+*.pyc
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.venv/
+venv/
+
+# Test artifacts
+coverage/
+.nyc_output/
+playwright-report/
+test-results/
