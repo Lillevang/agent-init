@@ -28,10 +28,10 @@ jobs:
           go-version-file: go.mod
           cache: true
 
-      - name: Install just + golangci-lint
+      - name: Install just
         uses: taiki-e/install-action@v2
         with:
-          tool: just,golangci-lint@1.64.8
+          tool: just
 
       - name: Install system tools
         run: sudo apt-get update && sudo apt-get install -y tree shellcheck
@@ -39,6 +39,8 @@ jobs:
       - name: Install Go tools
         run: |
           set -euo pipefail
+          curl -fsSL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh \
+            | sh -s -- -b "$(go env GOPATH)/bin" v1.64.8
           go install golang.org/x/tools/cmd/goimports@v0.30.0
           go install golang.org/x/vuln/cmd/govulncheck@v1.1.4
 
