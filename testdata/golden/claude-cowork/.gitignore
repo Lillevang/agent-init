@@ -1,0 +1,14 @@
+# Office app lock files (created when a .docx / .pptx / .xlsx is open)
+~$*
+
+# OneDrive / Dropbox / OS metadata
+.DS_Store
+Thumbs.db
+desktop.ini
+*.lnk
+
+# Editor backups
+*.swp
+*.swo
+*.bak
+*~

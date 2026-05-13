@@ -13,6 +13,7 @@ You are working inside a sandboxed dev container. Your filesystem access is boun
 - `fullstack` — TypeScript/Node frontend + backend, Playwright recording, OpenAPI client generation.
 - `go-cli` — Go command-line tool. `cmd/{{.ProjectName}}/main.go` (path-templated), `internal/`, cross-build via Justfile, `golangci-lint`.
 - `go-backend` — Go HTTP backend. `cmd/server` + `internal/api` with a `/healthz` handler, `run-dev` and `cross-build` recipes.
+- `claude-cowork` — OneDrive-backed document-collaboration folder for Claude Cowork. No devcontainer, no Justfile, no symlinks, no `.agent/` subdirectory; `AGENTS.md` + `decisions.md` + `corrections.md` at root plus `reference/`, `templates/`, `archive/`. The non-code flavor — it exercises the per-flavor `Symlinks` and `NextSteps` engine hooks.
 
 Planned:
 
@@ -104,7 +105,8 @@ Templates are embedded via `//go:embed all:templates`. Important constraints:
 - **Path templating** applies to every file, regardless of `.tmpl` extension. A template path like `cmd/{{.ProjectName}}/main.go.tmpl` renders to `cmd/myproject/main.go`. Use this when a directory name should reflect the project name. Gotcha: a `cmd/{{.ProjectName}}/` directory containing a plain `.go` file breaks `go build ./...` in this repo because Go tooling tries to read the literal `{` as a package path. The fix is to give the file a `.tmpl` extension — that hides it from Go tooling, and `text/template` parses the no-op content fine.
 - **Common overlay.** Every flavor is layered on top of `internal/flavors/common/templates/`. The scaffold engine walks the flavor first, then walks common as a fallback. A flavor overrides a common file by shipping its own copy at the same relative path. Don't copy a common file into a flavor "just to be safe" — if you need to change shared behavior for everyone, change it in `common/`.
 - **Executable bits are not preserved by `embed.FS`.** The scaffold engine has an explicit list of paths that should be marked executable on write. Common scripts are listed in `common.ExecutablePaths()`; flavor-specific scripts go in the flavor's own list.
-- **Symlinks aren't representable in `embed.FS`.** Symlinks (`AGENTS.md` ↔ `CLAUDE.md`, top-level → `.agent/*`) are created by the scaffold engine after file write, not stored as files.
+- **Symlinks aren't representable in `embed.FS`.** Symlinks are declared per-flavor via `Flavor.Symlinks` and created by the scaffold engine after file write. Code flavors get the canonical trio (`AGENTS.md` → `.agent/AGENTS.md`, `CLAUDE.md` → `.agent/CLAUDE.md`, `.agent/CLAUDE.md` → `AGENTS.md`) via `codeFlavorSymlinks()` in `registry.go`. Non-code flavors (e.g. `claude-cowork`) set `Symlinks` to nil; the engine just skips the step.
+- **Post-scaffold message is per-flavor.** `Flavor.NextSteps func(target string) string` returns the "what to do next" text printed after writing. If nil, the engine prints the default code-project message (devcontainer up + just check). Doc-collab flavors override this.
 
 ### Naming
 
@@ -173,13 +175,17 @@ When adding a new flavor:
 
 1. Create `internal/flavors/<name>/`.
 2. Add a `flavor.go` exposing `Templates()` (via `//go:embed all:templates`) and `ExecutablePaths()` for any flavor-specific scripts.
-3. Add `templates/` with files that are *unique* to this flavor. Do not duplicate anything that already lives in `internal/flavors/common/templates/` — the engine layers common in for you.
-4. Register the flavor in `internal/flavors/registry.go`, wiring `common.Templates()` as `CommonTemplates` and prepending `common.ExecutablePaths()` to the flavor's own executable list.
+3. Add `templates/` with files that are *unique* to this flavor. For **code flavors**, do not duplicate anything that already lives in `internal/flavors/common/templates/` — the engine layers common in. For **doc-collab flavors** (like `claude-cowork`), omit `CommonTemplates` entirely; common's `.agent/scripts/` don't apply.
+4. Register the flavor in `internal/flavors/registry.go`:
+   - Code flavors: wire `commonTemplates` as `CommonTemplates`, prepend `commonExec` to executables, set `Symlinks: codeFlavorSymlinks()`.
+   - Doc-collab flavors: omit `CommonTemplates`, leave `Symlinks` nil, provide a `NextSteps func(target string) string` that explains the post-scaffold setup (since `just check` doesn't apply).
 5. Add the flavor name to the slice in `test/golden_test.go` so the golden test exercises it.
-6. Generate the golden snapshot with `just smoke-test-update` — the recipe iterates `agent-init list-flavors`, so no Justfile change is needed.
+6. Generate the golden snapshot with `just smoke-test-update` — the recipe iterates `agent-init list-flavors`, so no Justfile change is needed. The recipe checks `AGENTS.md` at root *or* in `.agent/`, and runs `just check` only when a `Justfile` exists.
 7. Add a docs entry under `./docs/` describing the new flavor (see [Documentation](#documentation)).
 
-Resolve overlay conflicts in favor of the flavor-specific file. The engine handles that automatically by tracking which relative paths each layer claimed.
+Resolve common-overlay conflicts in favor of the flavor-specific file. The engine handles that automatically by tracking which relative paths each layer claimed.
+
+The per-flavor hooks (`Symlinks`, `NextSteps`, optional `CommonTemplates`) are documented in [`docs/engine/flavor-hooks.md`](../docs/engine/flavor-hooks.md).
 
 ## What you should NOT do
 
