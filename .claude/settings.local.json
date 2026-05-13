@@ -12,7 +12,8 @@
       "Bash(mv internal/flavors/gocli/templates/cmd/app/main.go 'internal/flavors/gocli/templates/cmd/{{.ProjectName}}/main.go')",
       "Bash(go build *)",
       "Bash(mv 'internal/flavors/gocli/templates/cmd/{{.ProjectName}}/main.go' 'internal/flavors/gocli/templates/cmd/{{.ProjectName}}/main.go.tmpl' && go build ./... 2>&1 | tail -5 && echo OK)",
-      "Bash(mkdir -p .claude/skills/add-flavor .claude/skills/feature-doc)"
+      "Bash(mkdir -p .claude/skills/add-flavor .claude/skills/feature-doc)",
+      "Bash(gh run *)"
     ],
     "additionalDirectories": [
       "/workspaces/agent-init/internal/flavors/gocli/templates/cmd/{{.ProjectName}}",
