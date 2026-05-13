@@ -34,13 +34,45 @@ lint:
     fi
     golangci-lint run
 
+# Lint shell scripts. shellcheck is installed via the devcontainer Dockerfile.
+lint-shell:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    if ! command -v shellcheck >/dev/null 2>&1; then
+        echo "ERROR: shellcheck not installed. Rebuild the devcontainer." >&2
+        exit 1
+    fi
+    files=$(find . -name '*.sh' -not -path './.git/*' -not -path './testdata/*' -print)
+    shellcheck $files
+
+# Run govulncheck against the module. Soft signal — surfaces stdlib + dep CVEs.
+vulncheck:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    if ! command -v govulncheck >/dev/null 2>&1; then
+        echo "ERROR: govulncheck not installed. Rebuild the devcontainer." >&2
+        exit 1
+    fi
+    govulncheck ./...
+
 # Type check
 typecheck:
     go vet ./...
 
-# Run tests
+# Verify go.mod / go.sum are tidy. Fails if go mod tidy would change them.
+mod-tidy:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    go mod tidy
+    if ! git diff --quiet --exit-code -- go.mod go.sum; then
+        echo "ERROR: go.mod or go.sum is not tidy. Run 'go mod tidy' and commit the result." >&2
+        git --no-pager diff -- go.mod go.sum
+        exit 1
+    fi
+
+# Run tests with the race detector enabled.
 test:
-    go test ./...
+    go test -race ./...
 
 # Build supported release targets
 cross-build:

@@ -25,6 +25,12 @@ repos:
         entry: goimports -w
         language: system
         files: '\.go$'
+      - id: shellcheck
+        name: shellcheck
+        entry: shellcheck
+        language: system
+        files: '\.sh$'
+        exclude: '^testdata/'
       - id: check
         name: agent done-gate (just check)
         entry: just check

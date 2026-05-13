@@ -17,6 +17,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
         jq \
         less \
         ripgrep \
+        shellcheck \
         tree \
         fd-find \
         ffmpeg \
@@ -31,10 +32,11 @@ RUN curl -fsSL "https://go.dev/dl/go${GO_VERSION}.linux-amd64.tar.gz" -o /tmp/go
     && rm /tmp/go.tgz
 ENV PATH="/usr/local/go/bin:${PATH}"
 
-# Go lint/format helpers used by the local done gate.
+# Go lint/format/vuln helpers used by the local done gate.
 RUN curl -fsSL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh \
         | sh -s -- -b /usr/local/bin "${GOLANGCI_LINT_VERSION}" \
-    && GOBIN=/usr/local/bin go install golang.org/x/tools/cmd/goimports@v0.30.0
+    && GOBIN=/usr/local/bin go install golang.org/x/tools/cmd/goimports@v0.30.0 \
+    && GOBIN=/usr/local/bin go install golang.org/x/vuln/cmd/govulncheck@v1.1.4
 
 # Node.js 20 (for the agent CLIs and Playwright)
 RUN curl -fsSL https://deb.nodesource.com/setup_20.x | bash - \

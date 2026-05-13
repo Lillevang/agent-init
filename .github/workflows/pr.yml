@@ -8,10 +8,16 @@ on:
 permissions:
   contents: read
 
+# Cancel an in-progress run when a new commit is pushed to the same PR.
+concurrency:
+  group: pr-${{ github.head_ref }}
+  cancel-in-progress: true
+
 jobs:
   check:
     name: Check
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -19,23 +25,29 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
-          go-version: "1.22.12"
+          go-version-file: go.mod
           cache: true
 
-      - name: Install just
+      - name: Install just + golangci-lint
         uses: taiki-e/install-action@v2
         with:
-          tool: just
+          tool: just,golangci-lint@1.64.8
 
       - name: Install system tools
-        run: sudo apt-get update && sudo apt-get install -y tree
+        run: sudo apt-get update && sudo apt-get install -y tree shellcheck
 
       - name: Install Go tools
         run: |
           set -euo pipefail
-          curl -fsSL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh \
-            | sh -s -- -b "$(go env GOPATH)/bin" v1.64.8
           go install golang.org/x/tools/cmd/goimports@v0.30.0
+          go install golang.org/x/vuln/cmd/govulncheck@v1.1.4
+
+      # Run hygiene + commit-stage hooks (trailing whitespace, EOF newlines,
+      # private-key check, gofmt, goimports). Catches anything that bypassed
+      # local pre-commit (uninstalled hooks, --no-verify, etc.). The pre-push
+      # `check` hook is excluded — `just check` runs as the next step.
+      - name: Run pre-commit hooks
+        uses: pre-commit/action@v3.0.1
 
       - name: Run done gate
         run: just check
