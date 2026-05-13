@@ -1,0 +1,81 @@
+# Agent Instructions for {{.ProjectName}}
+
+You are working inside a shared OneDrive folder loaded into Claude Cowork. Coworkers and you are collaborating on documents, meetings, drafts, and admin work. This is not a code repository.
+
+---
+
+## What this workspace is
+
+> **Replace this.** One paragraph describing what you and your coworkers do in this folder. Examples: "We track infrastructure handovers", "We prepare quarterly board materials", "We run an estimation review board".
+
+## Folder layout
+
+- **`/<project-name>/`** — one folder per workstream at the workspace root. Each project folder owns its drafts, briefs, slides, and per-project archive.
+- **`reference/`** — source materials we read from but generally don't modify: vendor docs, exported wikis, contracts, PDFs, large `.docx` files. Treat as read-only context unless explicitly told otherwise.
+- **`templates/`** — reusable templates (PowerPoint `.potx`, Word `.dotx`, Excel `.xltx`, markdown skeletons). When you produce a document that should match a template, pull from here first.
+- **`archive/`** — superseded versions of project work and old reference materials. You may read but should not delete from here without explicit user instruction.
+
+When a coworker hands you a new task, ask which existing project folder it belongs to. If none fits, propose a new top-level folder name before creating one.
+
+## File types you will encounter
+
+- `.md`, `.txt` — read and edit directly.
+- `.docx`, `.xlsx`, `.pptx` — Office files. You can read content via Claude Cowork's built-in tooling. When asked to produce one, deliver markdown first and let the user convert via a template unless they say otherwise.
+- `.pdf` — read-only in most cases. Quote with page references.
+- `.potx`, `.dotx`, `.xltx` — Office templates. Don't edit these unless explicitly asked; they are the reference shapes for new documents.
+- `.jpg`, `.png` — usually slide exports or screenshots. Reference by filename when discussing.
+- `.wiki` exports (nested directories with `%2D`-encoded names) — these are git-style wiki dumps. Treat the `.md` files inside as ordinary markdown; don't rename the encoded paths.
+
+## Decision log
+
+Before declaring a decision-shaped task complete, append an entry to [`decisions.md`](./decisions.md). A decision-shaped task is anything where:
+
+- A choice was made between two or more plausible options.
+- The choice will affect future work (a vendor selected, a structure adopted, a scope cut).
+- A coworker reading the log six months from now would benefit from knowing *why*.
+
+Use the format already in `decisions.md`. Be specific: name the decision, the options considered, what won, and the reason. One paragraph is usually enough.
+
+## Corrections
+
+See [`corrections.md`](./corrections.md). This file lists patterns you (or earlier sessions) have gotten wrong, with the preferred form. Read it before starting work and after any review. Add to it when a coworker corrects you and the correction is likely to recur.
+
+## Conventions
+
+### Writing style
+
+- Match the document's existing voice. If it's a draft you started, default to plain prose, short sentences, no marketing adjectives.
+- No emojis unless the document already uses them.
+- When summarizing meetings, lead with the decisions and action items, then the discussion that produced them.
+
+### Document handling
+
+- When producing a new document, write a markdown draft first. The user converts to `.docx`/`.pptx` via a template when ready.
+- When updating an existing `.docx`/`.pptx`, describe the change you'd make and ask for confirmation before applying. These files don't diff cleanly, so a mistake is expensive.
+- Archive superseded versions to `archive/` rather than overwriting. Date-prefix archived copies so the chronology is recoverable: `archive/2026-05-12_meeting_brief.md`.
+
+### Naming
+
+- File names: lowercase with underscores or hyphens. ASCII only (OneDrive sync hates accents in long paths).
+- Date prefixes for time-bound documents: `YYYY-MM-DD_<topic>.md`. This sorts chronologically and survives moves.
+- Project folder names: short, descriptive, no spaces. `hoto/` over `Hand Over to Operations/`.
+
+## What you should NOT do
+
+- Do not delete files. Move to `archive/` instead. Coworkers can recover; you cannot.
+- Do not modify files in `reference/` unless explicitly told to. They are source-of-truth materials.
+- Do not modify templates in `templates/` unless explicitly told to. Edit the template only after coworker agreement; a template change affects every future document.
+- Do not commit confidential data (API keys, customer PII, salary information) to this folder, even in drafts. If a coworker pastes such data into a conversation, do not write it to disk.
+- Do not silently restructure existing project folders. Propose a restructure in the decision log first.
+
+## When you're stuck
+
+Stop and ask. Specifically:
+
+- If two coworkers' instructions contradict each other, surface the conflict in chat — don't pick a side and proceed.
+- If a document's intent is unclear from its contents, ask before editing. Office files often have context that lives only in coworkers' heads.
+- If a meeting brief or decision involves people not in the current conversation, name them and ask whether they should be looped in.
+
+## Project-specific notes
+
+> **Add anything here that doesn't fit elsewhere.** Vendor quirks, standing meetings, "the X spreadsheet is hand-maintained by Y", recurring acronyms.

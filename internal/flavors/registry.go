@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"sort"
 
+	"github.com/mikeschinkel/agent-init/internal/flavors/claudecowork"
 	"github.com/mikeschinkel/agent-init/internal/flavors/common"
 	"github.com/mikeschinkel/agent-init/internal/flavors/fullstack"
 	"github.com/mikeschinkel/agent-init/internal/flavors/gobackend"
@@ -27,6 +28,7 @@ func DefaultRegistry() Registry {
 			CommonTemplates: commonTemplates,
 			CommonRoot:      "templates",
 			ExecutablePaths: append(commonExec, fullstack.ExecutablePaths()...),
+			Symlinks:        codeFlavorSymlinks(),
 		},
 		Flavor{
 			Name:            "go-cli",
@@ -37,6 +39,7 @@ func DefaultRegistry() Registry {
 			CommonTemplates: commonTemplates,
 			CommonRoot:      "templates",
 			ExecutablePaths: append(commonExec, gocli.ExecutablePaths()...),
+			Symlinks:        codeFlavorSymlinks(),
 		},
 		Flavor{
 			Name:            "go-backend",
@@ -47,8 +50,29 @@ func DefaultRegistry() Registry {
 			CommonTemplates: commonTemplates,
 			CommonRoot:      "templates",
 			ExecutablePaths: append(commonExec, gobackend.ExecutablePaths()...),
+			Symlinks:        codeFlavorSymlinks(),
+		},
+		Flavor{
+			Name:            "claude-cowork",
+			DisplayName:     "Claude Cowork",
+			Description:     "Shared document-collaboration folder for OneDrive-backed Claude Cowork sessions. AGENTS.md, decisions.md, corrections.md, and reference/templates/archive/ at the workspace root. No devcontainer, no Justfile, no symlinks (OneDrive sync hates them).",
+			Templates:       claudecowork.Templates(),
+			TemplateRoot:    "templates",
+			ExecutablePaths: claudecowork.ExecutablePaths(),
+			NextSteps:       claudecowork.NextSteps,
 		},
 	)
+}
+
+// codeFlavorSymlinks returns the AGENTS.md/CLAUDE.md symlink trio that every
+// code-project flavor ships. Doc-collaboration flavors omit these because
+// OneDrive/Dropbox-style sync clients don't reliably preserve symlinks.
+func codeFlavorSymlinks() []Symlink {
+	return []Symlink{
+		{Path: "AGENTS.md", Target: ".agent/AGENTS.md"},
+		{Path: "CLAUDE.md", Target: ".agent/CLAUDE.md"},
+		{Path: ".agent/CLAUDE.md", Target: "AGENTS.md"},
+	}
 }
 
 func NewRegistry(items ...Flavor) Registry {

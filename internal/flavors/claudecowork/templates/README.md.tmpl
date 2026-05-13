@@ -1,0 +1,49 @@
+# {{.ProjectName}}
+
+Shared workspace for collaborative document work with Claude Cowork. This folder is loaded into a Claude Cowork session; the agent reads everything below this directory and helps coworkers prepare briefs, summarize meetings, draft documents, and track decisions.
+
+## Folder structure
+
+```
+{{.ProjectName}}/
+├── AGENTS.md           # instructions for Claude (canonical, only shipped file)
+├── decisions.md        # log of decisions and their rationale
+├── corrections.md      # patterns Claude has gotten wrong; preferred form
+├── README.md           # this file
+├── reference/          # source materials (read-only context)
+├── templates/          # reusable .potx / .dotx / .xltx templates
+├── archive/            # superseded work
+└── <project-name>/     # one folder per active workstream — you create these
+```
+
+## Setting up `CLAUDE.md`
+
+Claude Cowork looks for `CLAUDE.md`. We ship only `AGENTS.md` so there's one canonical file to edit. Create `CLAUDE.md` on the host that authors edits:
+
+- **Linux / macOS** — symlink: `ln -s AGENTS.md CLAUDE.md`. One file, two names; edits land in both.
+- **Windows / OneDrive** — copy: `copy AGENTS.md CLAUDE.md`. OneDrive sync mangles symlinks, so symlinking on the Windows side leads to broken syncs. The cost is keeping the two in sync manually when `AGENTS.md` changes.
+
+You only need to do this once per workspace. After that, edit `AGENTS.md`; the Linux symlink keeps `CLAUDE.md` current automatically, and Windows users copy on demand.
+
+## How to use it
+
+1. **Add a project**: create a top-level folder for each workstream (`hoto/`, `q3-board-deck/`, `vendor-rfp/`). Put briefs, drafts, and per-project archive inside.
+2. **Drop in source material**: put vendor docs, exported wikis, and reference PDFs under `reference/`. Claude will read but won't modify them.
+3. **Add templates**: drop `.potx`/`.dotx`/`.xltx` files into `templates/` so Claude knows what shape new documents should follow.
+4. **Talk to Claude**: ask for a meeting brief, a draft, a summary. Claude writes markdown into the relevant project folder.
+5. **Convert to Office**: when a draft is ready, you (the human) convert it to `.docx`/`.pptx` using a template from `templates/`.
+
+## What Claude tracks for you
+
+- **`decisions.md`** — append-only log. Every time you and Claude pick between options, the choice and its rationale go here. Useful when reviewing in three months why a vendor was picked or why a section was cut.
+- **`corrections.md`** — when Claude gets something wrong and you correct it, the correction lands here so it doesn't recur next session.
+
+## Conventions
+
+- File names: lowercase, hyphens or underscores, ASCII only.
+- Dated documents: `YYYY-MM-DD_<topic>.md` so they sort chronologically.
+- Archive instead of deleting. Date-prefix archived files.
+
+## Adding a new coworker
+
+Send them the OneDrive folder link. The folder works the same for them — Claude Cowork picks up edits from any coworker. Ask them to skim `AGENTS.md` so they understand what Claude is allowed to do.

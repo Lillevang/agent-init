@@ -50,7 +50,7 @@ func Run(ctx context.Context, opts Options) error {
 			return err
 		}
 	}
-	printNextSteps(out, target)
+	printNextSteps(out, opts.Flavor, target)
 	return nil
 }
 
@@ -207,13 +207,14 @@ func renderPath(rel string, data templateData) (string, error) {
 }
 
 func createSymlinks(opts Options, target string, out io.Writer) error {
-	if err := link(opts, target, "AGENTS.md", ".agent/AGENTS.md", out); err != nil {
-		return err
+	for _, sl := range opts.Flavor.Symlinks {
+		dir, name := filepath.Split(sl.Path)
+		linkDir := filepath.Join(target, filepath.FromSlash(dir))
+		if err := link(opts, linkDir, name, sl.Target, out); err != nil {
+			return err
+		}
 	}
-	if err := link(opts, target, "CLAUDE.md", ".agent/CLAUDE.md", out); err != nil {
-		return err
-	}
-	return link(opts, filepath.Join(target, ".agent"), "CLAUDE.md", "AGENTS.md", out)
+	return nil
 }
 
 func link(opts Options, dir, name, dest string, out io.Writer) error {
@@ -268,7 +269,11 @@ func initGit(ctx context.Context, target string, dryRun bool, out io.Writer) err
 	return nil
 }
 
-func printNextSteps(out io.Writer, target string) {
+func printNextSteps(out io.Writer, flavor flavors.Flavor, target string) {
+	if flavor.NextSteps != nil {
+		fmt.Fprint(out, flavor.NextSteps(target))
+		return
+	}
 	fmt.Fprintf(out, `
 Done.
 

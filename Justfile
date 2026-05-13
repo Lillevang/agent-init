@@ -58,10 +58,13 @@ smoke-test:
         echo "→ smoke-testing flavor: $flavor"
         target="$tmp/$flavor"
         go run ./cmd/agent-init init --no-git "$flavor" "$target"
-        test -f "$target/.agent/AGENTS.md"
-        test -L "$target/AGENTS.md"
-        test -x "$target/.agent/scripts/check.sh"
-        (cd "$target" && just check)
+        # Every flavor must write AGENTS.md somewhere — either at the root
+        # (doc-collab flavors) or inside .agent/ (code flavors).
+        test -f "$target/AGENTS.md" || test -f "$target/.agent/AGENTS.md"
+        # Run the done-gate only when the flavor ships a Justfile.
+        if [[ -f "$target/Justfile" ]]; then
+            (cd "$target" && just check)
+        fi
         diff -ruN "testdata/golden/$flavor" "$target"
     done
 
@@ -77,7 +80,9 @@ smoke-test-update:
         echo "→ regenerating golden for flavor: $flavor"
         target="$tmp/$flavor"
         go run ./cmd/agent-init init --no-git "$flavor" "$target"
-        (cd "$target" && just check)
+        if [[ -f "$target/Justfile" ]]; then
+            (cd "$target" && just check)
+        fi
         rm -rf "testdata/golden/$flavor"
         cp -a "$target" "testdata/golden/$flavor"
     done

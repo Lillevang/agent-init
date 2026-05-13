@@ -9,6 +9,7 @@ A Go CLI that scaffolds repositories for sandboxed agentic development with Code
 | `fullstack` | TypeScript/Node frontend + backend with Playwright recording and OpenAPI client generation. |
 | `go-cli` | Go command-line tool with `cmd/{{.ProjectName}}/` (path-templated), `internal/`, cross-build via Justfile, and `golangci-lint`. |
 | `go-backend` | Go HTTP backend with `cmd/server`, `internal/api` router, a `/healthz` handler, and `run-dev` / `cross-build` recipes. |
+| `claude-cowork` | OneDrive-backed document collaboration folder for Claude Cowork. No devcontainer / Justfile / symlinks; root-level `AGENTS.md` + `decisions.md` + `corrections.md` + `reference/`, `templates/`, `archive/`. |
 
 Planned: `terraform`, `ansible`.
 
@@ -63,7 +64,7 @@ Flags for `init`:
 
 ## What It Writes
 
-Every flavor produces this skeleton:
+The three **code flavors** (`fullstack`, `go-cli`, `go-backend`) all produce this skeleton:
 
 ```text
 your-project/
@@ -85,11 +86,25 @@ your-project/
 └── README.agent.md
 ```
 
-On top of that skeleton, each flavor adds its own files:
+On top of that skeleton, each code flavor adds its own files:
 
 - `fullstack` — `apis/`, `clients/`, an OpenAPI-aware Justfile, and a Playwright `record-feature.sh` script.
 - `go-cli` — `cmd/{{.ProjectName}}/main.go` (rendered to your target dir name), `internal/version/`, `go.mod`, and a Justfile with `build`, `cross-build`.
 - `go-backend` — `cmd/server/main.go`, `internal/api/handlers.go` + tests, `go.mod`, and a Justfile with `run-dev`, `build`, `cross-build`.
+
+The `claude-cowork` flavor uses a deliberately different shape — no devcontainer, no symlinks, no `.agent/` subdirectory:
+
+```text
+your-workspace/
+├── AGENTS.md           # canonical agent instructions, at root
+├── README.md           # human onboarding
+├── decisions.md        # append-only decision log
+├── corrections.md
+├── .gitignore
+├── reference/          # source materials (read-only context)
+├── templates/          # .potx / .dotx / .xltx
+└── archive/            # superseded work
+```
 
 The Justfile `check` recipe runs whatever steps the scaffolded project supports; missing recipes are skipped silently. Empty repos remain installable before any application code exists.
 

@@ -14,7 +14,7 @@ import (
 )
 
 func TestFlavorGolden(t *testing.T) {
-	flavors := []string{"fullstack", "go-backend", "go-cli"}
+	flavors := []string{"claude-cowork", "fullstack", "go-backend", "go-cli"}
 	binary := buildAgentInit(t)
 	for _, flavor := range flavors {
 		flavor := flavor
@@ -65,6 +65,11 @@ func runAgentInit(t *testing.T, binary string, args ...string) {
 
 func runGeneratedCodemap(t *testing.T, target string) {
 	t.Helper()
+	script := filepath.Join(target, ".agent", "scripts", "gen-codemap.sh")
+	if _, err := os.Stat(script); err != nil {
+		// Flavor doesn't ship a codemap script (e.g. doc-collab flavors); nothing to regenerate.
+		return
+	}
 	cmd := exec.Command("./.agent/scripts/gen-codemap.sh")
 	cmd.Dir = target
 	output, err := cmd.CombinedOutput()
