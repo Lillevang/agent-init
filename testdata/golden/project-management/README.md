@@ -1,0 +1,91 @@
+# project-management
+
+Project-management workspace for tracking the business-side of a software project: requirements, decisions, stakeholders, meetings, time plans, and the work breakdown into Jira / Azure DevOps / GitHub items.
+
+This folder is loaded into Claude Code (or Claude Cowork). Claude takes one of several roles depending on what you ask — meeting scribe, epic breakdown, decision recorder, stakeholder tracker, tracker sync. See [`AGENTS.md`](./AGENTS.md) for the role definitions and the skill invocations.
+
+## Folder structure
+
+```
+project-management/
+├── AGENTS.md             # canonical agent instructions; multi-role
+├── README.md             # this file
+├── decisions.md          # append-only log of decisions and their rationale
+├── open-questions.md     # things to clarify, with owner and date raised
+├── stakeholders.md       # who can decide what
+├── .mcp.json             # MCP server configs; extended by `add-tracker`
+├── .gitignore            # standard hygiene
+├── epics/                # one .md per epic with breakdown
+├── meetings/             # dated meeting notes; _template_.md for the shape
+├── specs/                # design + requirement documents
+├── time-plans/           # milestone schedules, gantt-style plans
+├── integrations/         # one folder per active tracker
+└── archive/              # superseded versions
+```
+
+## How you use it
+
+### First-time setup
+
+1. Edit `AGENTS.md` — replace the "Project context" paragraph with what this project actually is, who the customer is, and the rough phase.
+2. Wire a tracker (one or more):
+   ```bash
+   agent-init add-tracker gh    .   # GitHub Issues
+   agent-init add-tracker jira  .   # Jira (Epic → Feature → User Story)
+   agent-init add-tracker ado   .   # Azure DevOps (Epic → Feature → PBI)
+   ```
+   Each call adds an entry to `.mcp.json` and writes a tracker-specific terminology cheatsheet under `integrations/`. Multiple trackers are fine — useful when migrating from one to another.
+3. Open the folder in Claude Code, or load it into Claude Cowork.
+4. (Linux/macOS only) Create `CLAUDE.md` as a symlink to `AGENTS.md`:
+   ```bash
+   ln -s AGENTS.md CLAUDE.md
+   ```
+   On Windows / OneDrive: `copy AGENTS.md CLAUDE.md` and keep the two in sync manually.
+
+### Day-to-day
+
+- **Meeting just ended?** Paste the notes or transcript. Use `/intake-meeting`. Claude writes the meeting summary, extracts action items, surfaces open questions, prompts to log any decisions.
+- **New epic to scope?** Use `/break-down-epic`. Claude drafts a breakdown into Features and work items, lists assumptions made, surfaces unknowns as open questions.
+- **Decision made?** Use `/log-decision`. Appends a structured entry to `decisions.md`.
+- **New stakeholder appeared?** Use `/track-stakeholder`. Adds them to `stakeholders.md` with their decision authority.
+- **Plan ready to push?** Use `/sync-tracker`. Pushes the local epics/items to the active tracker(s) via MCP. Pulls changes back too.
+
+### Storage modes
+
+This flavor works in two storage modes — pick one for your project:
+
+- **Git repo.** Best when the project-management workspace lives alongside the code, or as a sibling repo. Decisions and history are tracked via commits; PR review is available for cross-team changes.
+- **OneDrive / Dropbox folder.** Best for non-developer collaborators who don't use git. Same files, no version history, no symlinks.
+
+The scaffold doesn't create symlinks (OneDrive sync corrupts them). If you're on git + Linux/macOS, you can add `CLAUDE.md` → `AGENTS.md` symlink manually.
+
+## What lives where
+
+| You want to... | Look at |
+|----------------|---------|
+| Recall why we picked vendor X | `decisions.md` |
+| Find out who authorized scope cut Y | `decisions.md` → cross-ref to `stakeholders.md` |
+| Know who to ask about access policy | `stakeholders.md` |
+| See what's blocked on a clarification | `open-questions.md` |
+| Read the kickoff meeting summary | `meetings/2026-MM-DD_kickoff.md` |
+| Understand epic X | `epics/<name>.md` |
+| Push items to Jira | `/sync-tracker` (after `add-tracker jira`) |
+
+## Adding another tracker later
+
+Trackers are additive. To start a migration from one tracker to another, add the new tracker without removing the old one:
+
+```bash
+agent-init add-tracker jira .
+# Both ado and jira are now wired. Migrate epics one by one via /sync-tracker.
+# When the migration is complete, manually remove the ADO entry from .mcp.json
+# and the integrations/ado/ folder.
+```
+
+`agent-init add-tracker` is idempotent — running it twice for the same tracker is a no-op with a notice.
+
+## Updating the scaffold
+
+`agent-init init --force` overwrites template files including local edits. Don't run it on a workspace you've been editing. When you improve a template, copy the file manually.
+
+Tracker re-additions: `agent-init add-tracker <name>` is idempotent. To re-import a refreshed integration template, delete `integrations/<name>/README.md` first, then re-run.

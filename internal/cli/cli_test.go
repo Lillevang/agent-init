@@ -110,6 +110,121 @@ func TestRejectsUnknownCommandTypo(t *testing.T) {
 	}
 }
 
+func TestListTrackers(t *testing.T) {
+	t.Parallel()
+	var out bytes.Buffer
+	app := cli.New(&out, &bytes.Buffer{}, cli.Version{})
+
+	if err := app.Run(context.Background(), []string{"list-trackers"}); err != nil {
+		t.Fatalf("Run(list-trackers) error = %v", err)
+	}
+	got := out.String()
+	for _, name := range []string{"gh", "jira", "ado"} {
+		if !strings.Contains(got, name) {
+			t.Errorf("list-trackers output missing %q:\n%s", name, got)
+		}
+	}
+}
+
+func TestAddTrackerWritesFilesAndMergesMCP(t *testing.T) {
+	t.Parallel()
+	target := filepath.Join(t.TempDir(), "pm")
+	app := cli.New(&bytes.Buffer{}, &bytes.Buffer{}, cli.Version{})
+
+	// First scaffold the base project-management workspace.
+	if err := app.Run(context.Background(), []string{"init", "--no-git", "project-management", target}); err != nil {
+		t.Fatalf("init: %v", err)
+	}
+
+	// Add the GitHub tracker.
+	if err := app.Run(context.Background(), []string{"add-tracker", "gh", target}); err != nil {
+		t.Fatalf("add-tracker gh: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(target, "integrations", "github", "README.md")); err != nil {
+		t.Fatalf("integrations/github/README.md should exist: %v", err)
+	}
+	mcp, err := os.ReadFile(filepath.Join(target, ".mcp.json"))
+	if err != nil {
+		t.Fatalf("read .mcp.json: %v", err)
+	}
+	if !strings.Contains(string(mcp), `"github"`) {
+		t.Fatalf(".mcp.json missing 'github' entry:\n%s", string(mcp))
+	}
+}
+
+func TestAddTrackerIsIdempotent(t *testing.T) {
+	t.Parallel()
+	target := filepath.Join(t.TempDir(), "pm")
+	var out bytes.Buffer
+	app := cli.New(&out, &bytes.Buffer{}, cli.Version{})
+
+	if err := app.Run(context.Background(), []string{"init", "--no-git", "project-management", target}); err != nil {
+		t.Fatalf("init: %v", err)
+	}
+	if err := app.Run(context.Background(), []string{"add-tracker", "gh", target}); err != nil {
+		t.Fatalf("add-tracker gh (first): %v", err)
+	}
+	out.Reset()
+	if err := app.Run(context.Background(), []string{"add-tracker", "gh", target}); err != nil {
+		t.Fatalf("add-tracker gh (second): %v", err)
+	}
+	got := out.String()
+	if !strings.Contains(got, "already present") && !strings.Contains(got, "skip") {
+		t.Fatalf("second add-tracker run should report no changes; got:\n%s", got)
+	}
+}
+
+func TestAddTrackerMultipleCoexist(t *testing.T) {
+	t.Parallel()
+	target := filepath.Join(t.TempDir(), "pm")
+	app := cli.New(&bytes.Buffer{}, &bytes.Buffer{}, cli.Version{})
+
+	if err := app.Run(context.Background(), []string{"init", "--no-git", "project-management", target}); err != nil {
+		t.Fatalf("init: %v", err)
+	}
+	for _, name := range []string{"gh", "jira", "ado"} {
+		if err := app.Run(context.Background(), []string{"add-tracker", name, target}); err != nil {
+			t.Fatalf("add-tracker %s: %v", name, err)
+		}
+	}
+	mcp, err := os.ReadFile(filepath.Join(target, ".mcp.json"))
+	if err != nil {
+		t.Fatalf("read .mcp.json: %v", err)
+	}
+	for _, key := range []string{`"github"`, `"atlassian"`, `"azure-devops"`} {
+		if !strings.Contains(string(mcp), key) {
+			t.Errorf(".mcp.json missing %s after multi-tracker add:\n%s", key, string(mcp))
+		}
+	}
+}
+
+func TestAddTrackerRejectsMissingScaffold(t *testing.T) {
+	t.Parallel()
+	target := t.TempDir() // empty dir, no .mcp.json
+	app := cli.New(&bytes.Buffer{}, &bytes.Buffer{}, cli.Version{})
+
+	err := app.Run(context.Background(), []string{"add-tracker", "gh", target})
+	if err == nil {
+		t.Fatal("expected error when target has no .mcp.json")
+	}
+	if !strings.Contains(err.Error(), "project-management scaffold") {
+		t.Fatalf("error should mention the missing scaffold; got: %v", err)
+	}
+}
+
+func TestAddTrackerRejectsUnknownTracker(t *testing.T) {
+	t.Parallel()
+	target := filepath.Join(t.TempDir(), "pm")
+	app := cli.New(&bytes.Buffer{}, &bytes.Buffer{}, cli.Version{})
+	if err := app.Run(context.Background(), []string{"init", "--no-git", "project-management", target}); err != nil {
+		t.Fatalf("init: %v", err)
+	}
+	err := app.Run(context.Background(), []string{"add-tracker", "github-but-misspelled", target})
+	if err == nil {
+		t.Fatal("expected error for unknown tracker")
+	}
+}
+
 func TestVersion(t *testing.T) {
 	t.Parallel()
 	var out bytes.Buffer
