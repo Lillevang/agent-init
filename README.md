@@ -10,6 +10,7 @@ A Go CLI that scaffolds repositories for sandboxed agentic development with Code
 | `go-cli` | Go command-line tool with `cmd/{{.ProjectName}}/` (path-templated), `internal/`, cross-build via Justfile, and `golangci-lint`. |
 | `go-backend` | Go HTTP backend with `cmd/server`, `internal/api` router, a `/healthz` handler, and `run-dev` / `cross-build` recipes. |
 | `claude-cowork` | OneDrive-backed document collaboration folder for Claude Cowork. No devcontainer / Justfile / symlinks; root-level `AGENTS.md` + `decisions.md` + `corrections.md` + `reference/`, `templates/`, `archive/`. |
+| `project-management` | Project-management workspace (epics, meetings, decisions, stakeholders, time plans). Ships five skills (`/intake-meeting`, `/break-down-epic`, `/log-decision`, `/track-stakeholder`, `/sync-tracker`) and supports MCP tracker integrations via `agent-init add-tracker {jira\|ado\|gh}`. |
 
 Planned: `terraform`, `ansible`.
 
@@ -37,7 +38,9 @@ go build \
 
 ```bash
 agent-init init [flavor] [target-dir]
+agent-init add-tracker <tracker> <target-dir>
 agent-init list-flavors
+agent-init list-trackers
 agent-init version
 ```
 
@@ -61,6 +64,8 @@ Flags for `init`:
 - `--force` — overwrite existing files instead of skipping them.
 - `--no-git` — skip `git init` when the target is not already a repository.
 - `--dry-run` — print planned writes without changing files.
+
+The `add-tracker` subcommand extends a `project-management` scaffold with a Jira / Azure DevOps / GitHub integration. Each call writes an `integrations/<tracker>/` cheatsheet and merges an entry into the target's `.mcp.json`. Idempotent and additive — multiple trackers can coexist (useful during migrations). See [`docs/cli.md`](./docs/cli.md) and [`docs/flavors/project-management.md`](./docs/flavors/project-management.md) for details.
 
 ## What It Writes
 

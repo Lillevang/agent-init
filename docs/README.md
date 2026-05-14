@@ -19,14 +19,17 @@ One markdown file per topic. Group flavors under `flavors/`, engine capabilities
 
 ```
 docs/
-├── README.md            # this file
-├── cli.md               # subcommands + flags
+├── README.md                   # this file
+├── cli.md                      # subcommands + flags (DONE)
 ├── engine/
-│   ├── templates.md     # .tmpl content substitution
+│   ├── flavor-hooks.md         # Symlinks, NextSteps, CommonTemplates (DONE)
+│   ├── templates.md            # .tmpl content substitution
 │   ├── path-templating.md
 │   ├── common-overlay.md
 │   └── done-gate.md
 └── flavors/
+    ├── claude-cowork.md        # (DONE)
+    ├── project-management.md   # (DONE — with worked examples)
     ├── fullstack.md
     ├── go-cli.md
     └── go-backend.md
@@ -37,10 +40,6 @@ Not all of these exist yet. The backlog below lists what's needed.
 ## Backlog
 
 Features that exist in the code but don't yet have a doc entry. The next agent to touch one of these is on the hook to write its doc.
-
-### CLI
-
-- [ ] `cli.md` — `init`, `list-flavors`, `version` subcommands; `--force`, `--no-git`, `--dry-run` flags. Source: [internal/cli/cli.go](../internal/cli/cli.go).
 
 ### Engine
 

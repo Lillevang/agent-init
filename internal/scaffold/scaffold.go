@@ -54,6 +54,28 @@ func Run(ctx context.Context, opts Options) error {
 	return nil
 }
 
+// Overlay writes a single template layer onto an existing target directory.
+// Unlike Run, it does not init git, create symlinks, or print a next-steps
+// message — it just walks the layer and writes (or skips, or dry-runs) the
+// files using the same engine semantics as a normal scaffold. Use this for
+// incremental subcommands like add-tracker that augment an already-scaffolded
+// project.
+//
+// opts.Flavor is ignored except for opts.Force, opts.DryRun, opts.Target,
+// opts.Out — the other Flavor fields (Symlinks, NextSteps, etc.) are not used.
+func Overlay(opts Options, fsys fs.FS, root string) error {
+	out := opts.Out
+	if out == nil {
+		out = io.Discard
+	}
+	target, err := prepareTarget(opts.Target, opts.DryRun)
+	if err != nil {
+		return err
+	}
+	data := templateData{ProjectName: filepath.Base(target)}
+	return walkLayer(opts, fsys, root, target, data, map[string]bool{}, out)
+}
+
 func prepareTarget(target string, dryRun bool) (string, error) {
 	if target == "" {
 		target = "."

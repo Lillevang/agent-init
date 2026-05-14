@@ -9,6 +9,7 @@ import (
 	"github.com/mikeschinkel/agent-init/internal/flavors/fullstack"
 	"github.com/mikeschinkel/agent-init/internal/flavors/gobackend"
 	"github.com/mikeschinkel/agent-init/internal/flavors/gocli"
+	"github.com/mikeschinkel/agent-init/internal/flavors/projectmgmt"
 )
 
 type Registry struct {
@@ -60,6 +61,15 @@ func DefaultRegistry() Registry {
 			TemplateRoot:    "templates",
 			ExecutablePaths: claudecowork.ExecutablePaths(),
 			NextSteps:       claudecowork.NextSteps,
+		},
+		Flavor{
+			Name:            "project-management",
+			DisplayName:     "Project Management",
+			Description:     "Project-management workspace: epics, meetings, decisions, stakeholders, open questions, time plans. Multi-skill (intake-meeting, break-down-epic, log-decision, track-stakeholder, sync-tracker). Extendable via `agent-init add-tracker {jira|ado|gh}` for tracker integrations.",
+			Templates:       projectmgmt.Templates(),
+			TemplateRoot:    "templates",
+			ExecutablePaths: projectmgmt.ExecutablePaths(),
+			NextSteps:       projectmgmt.NextSteps,
 		},
 	)
 }

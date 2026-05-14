@@ -14,6 +14,7 @@ You are working inside a sandboxed dev container. Your filesystem access is boun
 - `go-cli` — Go command-line tool. `cmd/{{.ProjectName}}/main.go` (path-templated), `internal/`, cross-build via Justfile, `golangci-lint`.
 - `go-backend` — Go HTTP backend. `cmd/server` + `internal/api` with a `/healthz` handler, `run-dev` and `cross-build` recipes.
 - `claude-cowork` — OneDrive-backed document-collaboration folder for Claude Cowork. No devcontainer, no Justfile, no symlinks, no `.agent/` subdirectory; `AGENTS.md` + `decisions.md` + `corrections.md` at root plus `reference/`, `templates/`, `archive/`. The non-code flavor — it exercises the per-flavor `Symlinks` and `NextSteps` engine hooks.
+- `project-management` — workspace for running the business side of a project: epics, meetings, decisions, stakeholders, open questions, time plans. Ships five skills (`/intake-meeting`, `/break-down-epic`, `/log-decision`, `/track-stakeholder`, `/sync-tracker`) and is extended via the `agent-init add-tracker {jira|ado|gh}` subcommand which merges entries into `.mcp.json` for MCP-based tracker integration.
 
 Planned:
 
@@ -61,7 +62,9 @@ The binary's interface is the product. Keep it small and stable.
 ### Subcommands
 
 - `agent-init init [flavor] [target-dir]` — scaffold a project. Default flavor: `fullstack`. Default target: `.`.
+- `agent-init add-tracker <tracker> <target-dir>` — overlay a tracker integration (`jira`, `ado`, or `gh`) onto an existing `project-management` scaffold. Writes `integrations/<tracker>/README.md` and merges an entry into the target's `.mcp.json`. Idempotent.
 - `agent-init list-flavors` — print available flavors with descriptions.
+- `agent-init list-trackers` — print available trackers with descriptions.
 - `agent-init version` — print version info (commit + build date, embedded via `-ldflags`).
 
 ### Flags on `init`
