@@ -100,6 +100,49 @@ func TestInitHelpFlagDoesNotError(t *testing.T) {
 	}
 }
 
+func TestInitAgentsOnlyDropsFreshOnlyFiles(t *testing.T) {
+	t.Parallel()
+	target := filepath.Join(t.TempDir(), "existing")
+	app := cli.New(&bytes.Buffer{}, &bytes.Buffer{}, cli.Version{})
+
+	err := app.Run(context.Background(), []string{"init", "--no-git", "--agents-only", "go-cli", target})
+	if err != nil {
+		t.Fatalf("Run(init --agents-only go-cli) error = %v", err)
+	}
+	for _, p := range []string{"cmd", "go.mod", filepath.Join("internal", "version", "version.go")} {
+		if _, err := os.Stat(filepath.Join(target, p)); !os.IsNotExist(err) {
+			t.Errorf("--agents-only shipped %s, stat err = %v", p, err)
+		}
+	}
+	for _, p := range []string{filepath.Join(".agent", "AGENTS.md"), "Justfile", ".pre-commit-config.yaml"} {
+		if _, err := os.Stat(filepath.Join(target, p)); err != nil {
+			t.Errorf("--agents-only missing %s: %v", p, err)
+		}
+	}
+	justfile, err := os.ReadFile(filepath.Join(target, "Justfile"))
+	if err != nil {
+		t.Fatalf("read Justfile: %v", err)
+	}
+	if bytes.Contains(justfile, []byte("./cmd/")) {
+		t.Errorf("--agents-only Justfile still references ./cmd/, want layout-agnostic recipes:\n%s", string(justfile))
+	}
+}
+
+func TestInitAgentsOnlyRejectsUnsupportedFlavor(t *testing.T) {
+	t.Parallel()
+	app := cli.New(&bytes.Buffer{}, &bytes.Buffer{}, cli.Version{})
+
+	// project-management is a doc-collab flavor; it has no "fresh project"
+	// vs "existing project" distinction so --agents-only is rejected.
+	err := app.Run(context.Background(), []string{"init", "--no-git", "--agents-only", "project-management", t.TempDir()})
+	if err == nil {
+		t.Fatal("Run(init --agents-only project-management) error = nil; want rejection")
+	}
+	if !strings.Contains(err.Error(), "agents-only") {
+		t.Fatalf("error = %v; want to mention --agents-only", err)
+	}
+}
+
 func TestRejectsUnknownCommandTypo(t *testing.T) {
 	t.Parallel()
 	app := cli.New(&bytes.Buffer{}, &bytes.Buffer{}, cli.Version{})

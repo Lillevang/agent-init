@@ -1,0 +1,106 @@
+# Justfile for fullstack-agents-only, a TypeScript/Node fullstack project.
+
+set shell := ["bash", "-uc"]
+
+default:
+    @just --list
+
+# Full done-gate
+check:
+    ./.agent/scripts/check.sh
+
+# Regenerate codemap
+codemap:
+    ./.agent/scripts/gen-codemap.sh
+
+# Generate TypeScript clients from OpenAPI specs in apis/
+generate-clients:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    if ! ls apis/*.yaml apis/*.yml apis/*.json >/dev/null 2>&1; then
+        echo "no specs in apis/, skipping"
+        exit 0
+    fi
+    mkdir -p clients
+    for spec in apis/*.{yaml,yml,json}; do
+        [[ -f "$spec" ]] || continue
+        name=$(basename "$spec" | sed 's/\.[^.]*$//')
+        echo "generating client: $name"
+        npx openapi-typescript "$spec" -o "clients/${name}.d.ts"
+    done
+
+# Format TypeScript/JavaScript/CSS/JSON/Markdown when package tooling exists
+fmt:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    if [[ ! -f package.json ]]; then
+        echo "no package.json, skipping formatter"
+        exit 0
+    fi
+    if npm run | grep -qE '^  format($|:)'; then
+        npm run format
+    else
+        npx prettier --write .
+    fi
+
+# Lint with the project's npm script when present
+lint:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    if [[ ! -f package.json ]]; then
+        echo "no package.json, skipping lint"
+        exit 0
+    fi
+    if npm run | grep -qE '^  lint($|:)'; then
+        npm run lint
+    else
+        echo "no npm lint script, skipping"
+    fi
+
+# Type-check with the project's npm script when present
+typecheck:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    if [[ ! -f package.json ]]; then
+        echo "no package.json, skipping typecheck"
+        exit 0
+    fi
+    if npm run | grep -qE '^  typecheck($|:)'; then
+        npm run typecheck
+    elif [[ -f tsconfig.json ]]; then
+        npx tsc --noEmit
+    else
+        echo "no typecheck script or tsconfig.json, skipping"
+    fi
+
+# Run unit tests with the project's npm script when present
+test:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    if [[ ! -f package.json ]]; then
+        echo "no package.json, skipping tests"
+        exit 0
+    fi
+    if npm run | grep -qE '^  test($|:)'; then
+        npm test
+    else
+        echo "no npm test script, skipping"
+    fi
+
+# Run Playwright tests when the project has Playwright coverage
+playwright:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    if [[ -f playwright.config.ts || -f playwright.config.js || -d tests/e2e ]]; then
+        npx playwright test
+    else
+        echo "no Playwright config or tests/e2e directory, skipping"
+    fi
+
+# Invoke reviewer agent
+review:
+    ./.agent/scripts/review.sh
+
+# Record a Playwright feature run as mp4
+record FEATURE:
+    ./.agent/scripts/record-feature.sh {{FEATURE}}

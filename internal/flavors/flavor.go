@@ -28,6 +28,18 @@ type Flavor struct {
 	// code-project message (devcontainer + just check). Doc-collaboration
 	// flavors should override this.
 	NextSteps func(target string) string
+	// SupportsAgentsOnly is true for flavors that can be scaffolded with
+	// only the agentic envelope (AGENTS.md, scripts, devcontainer, Justfile,
+	// pre-commit) and without the fresh-project boilerplate listed in
+	// FreshOnlyPaths. Set on flavors meant to also be added to existing
+	// projects of that kind.
+	SupportsAgentsOnly bool
+	// FreshOnlyPaths lists template destination paths (post-".tmpl" strip,
+	// pre-rendering — e.g. "cmd/{{.ProjectName}}/main.go") that are skipped
+	// when --agents-only is set. Use this for files that bootstrap a fresh
+	// project (entry points, go.mod, language-specific layout) but would
+	// collide with an existing project's structure.
+	FreshOnlyPaths []string
 }
 
 // Symlink describes a symlink the scaffold engine should create after

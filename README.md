@@ -1,6 +1,21 @@
 # agent-init
 
-A Go CLI that scaffolds repositories for sandboxed agentic development with Codex, Claude Code, or similar tools. It writes a devcontainer, an `AGENTS.md`/`CLAUDE.md` pair, a codemap, correction notes, check and review scripts, a `Justfile`, and pre-commit wiring — tuned to a chosen flavor.
+`agent-init` adds an agentic development workflow to a Go, TypeScript, or Infrastructure-as-Code project — primarily by enhancing one you already have, optionally by bootstrapping a new repo from scratch.
+
+## What it's for
+
+The primary use case is **adding agents to existing projects**. Most code already exists. Run:
+
+```bash
+agent-init init <flavor> --agents-only ./your-existing-repo
+```
+
+…and the scaffold drops in just the agentic envelope — a devcontainer, an `AGENTS.md`/`CLAUDE.md` pair (the agent's house rules), helper scripts, a `Justfile`, and pre-commit hooks — **without touching** your `go.mod`, `package.json`, `main.go`, or any existing source. The "fresh project" mode (omit `--agents-only`) is supported and useful when you genuinely are starting from zero, but it's the secondary path.
+
+Two things this is trying to enforce:
+
+- **Sandbox the agent.** The devcontainer is the work surface. Agents run inside it with a bounded toolchain (Go, Node, lint, security scanners — whatever the chosen flavor needs) and write only into the mounted workspace. Credentials, host SSH keys, and cloud configs are explicit opt-in mounts — commented out in `devcontainer.json` by default so the agent doesn't pick them up unless you choose to share them.
+- **Force agents to verify.** Every scaffolded project ships a `check.sh` "done-gate" that runs codemap regeneration, formatting, linting, type-checking, tests, and (per flavor) cross-builds, vulnerability scans, or security scans. The agent's contract — encoded in the generated `AGENTS.md` — is: don't declare a task complete until `./.agent/scripts/check.sh` passes. This is the simplest mechanism we've found that stops agents from cutting work short with "I think it's done."
 
 ## Flavors
 
@@ -48,14 +63,20 @@ Defaults: flavor `fullstack`, target `.`.
 Examples:
 
 ```bash
-# Scaffold the current repo with the default flavor.
-agent-init init
+# Primary use case: add the agentic envelope to an existing project.
+# Drops in .devcontainer/, .agent/, Justfile, .pre-commit-config.yaml, etc.
+# Does NOT touch go.mod, package.json, main.go, or anything else you already have.
+agent-init init go-cli --agents-only ~/repos/my-existing-cli
+agent-init init fullstack --agents-only ~/repos/my-existing-app
+agent-init init iac --agents-only ~/repos/my-existing-infra
 
-# Scaffold a new Go CLI repo. The cmd/ subdirectory is named after the target.
-agent-init init go-cli ./my-tool
+# Bootstrap mode: scaffold a brand-new repo with the flavor's project layout.
+agent-init init go-cli ./my-new-tool
+agent-init init fullstack            # current directory, default flavor
+agent-init ./my-new-tool             # path syntax, implies fullstack
 
-# Path syntax also works without `init`.
-agent-init ./my-tool
+# Preview without writing anything.
+agent-init init go-backend --agents-only --dry-run ~/repos/my-service
 ```
 
 Flags for `init`:
@@ -63,6 +84,7 @@ Flags for `init`:
 - `--force` — overwrite existing files instead of skipping them.
 - `--no-git` — skip `git init` when the target is not already a repository.
 - `--dry-run` — print planned writes without changing files.
+- `--agents-only` — skip the flavor's fresh-project files; ship only the agentic envelope (AGENTS.md, scripts, devcontainer, Justfile, pre-commit). For adding `agent-init` to an existing project. Supported on every code flavor: `fullstack`, `go-cli`, `go-backend`, `iac`. See [`docs/flavors/go-cli.md`](./docs/flavors/go-cli.md) for a worked example.
 
 The `add-tracker` subcommand extends a `project-management` scaffold with a Jira / Azure DevOps / GitHub integration. Each call writes an `integrations/<tracker>/` cheatsheet and merges an entry into the target's `.mcp.json`. Idempotent and additive — multiple trackers can coexist (useful during migrations). See [`docs/cli.md`](./docs/cli.md) and [`docs/flavors/project-management.md`](./docs/flavors/project-management.md) for details.
 
@@ -90,12 +112,14 @@ your-project/
 └── README.agent.md
 ```
 
-On top of that skeleton, each code flavor adds its own files:
+On top of that skeleton, each code flavor adds its own fresh-project files:
 
 - `fullstack` — `apis/`, `clients/`, an OpenAPI-aware Justfile, and a Playwright `record-feature.sh` script.
 - `go-cli` — `cmd/{{.ProjectName}}/main.go` (rendered to your target dir name), `internal/version/`, `go.mod`, and a Justfile with `build`, `cross-build`.
 - `go-backend` — `cmd/server/main.go`, `internal/api/handlers.go` + tests, `go.mod`, and a Justfile with `run-dev`, `build`, `cross-build`.
 - `iac` — `terraform/` (root module + `modules/`) and `ansible/` (`inventory/`, `playbooks/`, `roles/`, `requirements.yml`) trees, `ansible.cfg`, `.tflint.hcl`, `.yamllint.yml`, `.ansible-lint`, and a Justfile whose `fmt` / `lint` / `typecheck` / `test` / `security` recipes auto-detect whether Terraform, Ansible, or both are present. Ships a flavor-local `gen-codemap.sh` that surfaces TF modules, root `.tf` `variable` / `output` / `resource` declarations, Ansible roles, and playbook task counts.
+
+Every code flavor supports `--agents-only` for **adding the envelope to a project that already exists** — the flavor-specific files above are skipped, and (for `go-cli` and `go-backend`) the Justfile is replaced with a layout-agnostic variant that drops the `build` / `cross-build` recipes those flavors otherwise tie to a fixed `cmd/` path. Per-flavor `FreshOnlyPaths` are declared in [`internal/flavors/registry.go`](./internal/flavors/registry.go); see [`docs/flavors/go-cli.md`](./docs/flavors/go-cli.md) for a worked example.
 
 The `claude-cowork` flavor uses a deliberately different shape — no devcontainer, no symlinks, no `.agent/` subdirectory:
 
@@ -138,4 +162,4 @@ The devcontainer installs Go, `goimports`, `golangci-lint`, `just`, pre-commit, 
 
 Pull requests to `main` run `just check`, which covers codemap regeneration, formatting, linting, `go vet`, tests, cross-builds, and the full multi-flavor smoke test.
 
-Pushes to `main` run the same gate, then build Linux binaries for `amd64` and `arm64`, publish tarballs plus SHA-256 checksums, and create a GitHub release tagged `build-<run-number>`. The release matrix is structured so Windows can be added when that target enters scope.
+Pushes to `main` run the same gate, then build binaries for Linux `amd64`, Linux `arm64`, and Windows `amd64` — published as `.tar.gz` (Linux) and `.zip` (Windows) with a `checksums.txt`, attached to a GitHub release tagged `build-<run-number>`.

@@ -21,8 +21,18 @@ type Options struct {
 	Force   bool
 	InitGit bool
 	DryRun  bool
-	Out     io.Writer
+	// AgentsOnly drops the fresh-project files declared in
+	// Flavor.FreshOnlyPaths and prefers any ".agents-only" variant template
+	// files. Used to add the agentic envelope to an existing project.
+	AgentsOnly bool
+	Out        io.Writer
 }
+
+// agentsOnlySuffix marks a template file as the variant to use in
+// agents-only mode. The suffix is stripped from the destination path before
+// writing, so `Justfile.agents-only.tmpl` writes as `Justfile`. In fresh
+// mode the variant is skipped entirely.
+const agentsOnlySuffix = ".agents-only"
 
 type templateData struct {
 	ProjectName string
@@ -129,6 +139,32 @@ func walkLayer(opts Options, fsys fs.FS, root, target string, data templateData,
 	if err != nil {
 		return fmt.Errorf("opening template root %q: %w", root, err)
 	}
+	// First pass: in agents-only mode, identify destination rels that have a
+	// .agents-only variant in this layer so the base file gets shadowed.
+	coveredByVariant := map[string]bool{}
+	if opts.AgentsOnly {
+		if err := fs.WalkDir(rootFS, ".", func(path string, entry fs.DirEntry, err error) error {
+			if err != nil || entry.IsDir() {
+				return err
+			}
+			destRel := strings.TrimSuffix(path, ".tmpl")
+			if !strings.HasSuffix(destRel, agentsOnlySuffix) {
+				return nil
+			}
+			baseRel := strings.TrimSuffix(destRel, agentsOnlySuffix)
+			baseRel, err = renderPath(baseRel, data)
+			if err != nil {
+				return fmt.Errorf("rendering path %s: %w", path, err)
+			}
+			coveredByVariant[baseRel] = true
+			return nil
+		}); err != nil {
+			return err
+		}
+	}
+	// Pre-render FreshOnlyPaths once so the per-file check is a plain
+	// string comparison.
+	freshOnly := renderedFreshOnly(opts, data)
 	return fs.WalkDir(rootFS, ".", func(path string, entry fs.DirEntry, err error) error {
 		if err != nil {
 			return err
@@ -136,25 +172,58 @@ func walkLayer(opts Options, fsys fs.FS, root, target string, data templateData,
 		if entry.IsDir() {
 			return nil
 		}
+		destRel := strings.TrimSuffix(path, ".tmpl")
+		isVariant := strings.HasSuffix(destRel, agentsOnlySuffix)
+		if isVariant {
+			if !opts.AgentsOnly {
+				return nil
+			}
+			destRel = strings.TrimSuffix(destRel, agentsOnlySuffix)
+		}
+		destRel, err = renderPath(destRel, data)
+		if err != nil {
+			return fmt.Errorf("rendering path %s: %w", path, err)
+		}
+		if opts.AgentsOnly {
+			if freshOnly[destRel] {
+				return nil
+			}
+			if !isVariant && coveredByVariant[destRel] {
+				return nil
+			}
+		}
+		if claimed[destRel] {
+			return nil
+		}
+		claimed[destRel] = true
 		content, err := fs.ReadFile(rootFS, path)
 		if err != nil {
 			return fmt.Errorf("reading template %s: %w", path, err)
 		}
-		rel := strings.TrimSuffix(path, ".tmpl")
-		rel, err = renderPath(rel, data)
-		if err != nil {
-			return fmt.Errorf("rendering path %s: %w", path, err)
-		}
-		if claimed[rel] {
-			return nil
-		}
-		claimed[rel] = true
 		rendered, err := render(path, content, data)
 		if err != nil {
 			return err
 		}
-		return writeFile(opts, target, rel, rendered, out)
+		return writeFile(opts, target, destRel, rendered, out)
 	})
+}
+
+// renderedFreshOnly resolves Flavor.FreshOnlyPaths into a set of rendered
+// destination paths for the active scaffold. Only meaningful when
+// opts.AgentsOnly is set; callers check that before consulting the result.
+func renderedFreshOnly(opts Options, data templateData) map[string]bool {
+	if !opts.AgentsOnly || len(opts.Flavor.FreshOnlyPaths) == 0 {
+		return nil
+	}
+	out := make(map[string]bool, len(opts.Flavor.FreshOnlyPaths))
+	for _, p := range opts.Flavor.FreshOnlyPaths {
+		rendered, err := renderPath(p, data)
+		if err != nil {
+			continue
+		}
+		out[rendered] = true
+	}
+	return out
 }
 
 func writeFile(opts Options, target, rel string, content []byte, out io.Writer) error {

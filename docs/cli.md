@@ -30,11 +30,13 @@ agent-init ./my-tool                      # path-only form; implies fullstack
 | `--force` | Overwrite existing files instead of skipping them. Default: skip with a notice. |
 | `--no-git` | Skip `git init` when the target is not already a repo. |
 | `--dry-run` | Print planned writes without changing files. |
+| `--agents-only` | Skip the flavor's fresh-project files; ship only the agentic envelope (AGENTS.md, scripts, devcontainer, Justfile, pre-commit). For adding agents to an existing project. Supported on every code flavor: `fullstack`, `go-cli`, `go-backend`, `iac`. Rejected on doc-collab flavors (`claude-cowork`, `project-management`) since they don't bootstrap a project layout. |
 
 ### Behavior
 
 - The scaffold engine walks the flavor's templates, then the common overlay (if the flavor has one). Existing files are skipped unless `--force` is set.
 - After file writes: creates the flavor's declared symlinks (code flavors get the AGENTS.md/CLAUDE.md trio; doc-collab flavors get none), then runs `git init` unless `--no-git`, then prints the flavor's `NextSteps` message.
+- With `--agents-only`: paths listed in the flavor's `FreshOnlyPaths` are skipped, and any template named `<file>.agents-only.<ext>` (e.g. `Justfile.agents-only.tmpl`) is written as `<file>.<ext>` in place of the base. See [docs/flavors/go-cli.md](./flavors/go-cli.md) for a worked example.
 - Source: [scaffold.go:31](../internal/scaffold/scaffold.go#L31) (`Run`).
 
 ## `add-tracker`

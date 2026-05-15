@@ -220,6 +220,78 @@ func pathTemplateFS() fstest.MapFS {
 	}
 }
 
+func TestRunAgentsOnlySkipsFreshOnlyPathsAndPrefersVariant(t *testing.T) {
+	t.Parallel()
+	target := filepath.Join(t.TempDir(), "myproj")
+	flavor := flavors.Flavor{
+		Name: "test-agents-only",
+		Templates: fstest.MapFS{
+			"templates/cmd/{{.ProjectName}}/main.go": &fstest.MapFile{Data: []byte("FRESH-MAIN"), Mode: 0o644},
+			"templates/go.mod":                       &fstest.MapFile{Data: []byte("FRESH-GOMOD"), Mode: 0o644},
+			"templates/Justfile.tmpl":                &fstest.MapFile{Data: []byte("FRESH-JUSTFILE-{{.ProjectName}}"), Mode: 0o644},
+			"templates/Justfile.agents-only.tmpl":    &fstest.MapFile{Data: []byte("AGENTS-JUSTFILE-{{.ProjectName}}"), Mode: 0o644},
+			"templates/README.md":                    &fstest.MapFile{Data: []byte("UNCHANGED"), Mode: 0o644},
+		},
+		TemplateRoot:       "templates",
+		SupportsAgentsOnly: true,
+		FreshOnlyPaths: []string{
+			"cmd/{{.ProjectName}}/main.go",
+			"go.mod",
+		},
+	}
+
+	err := scaffold.Run(context.Background(), scaffold.Options{
+		Flavor:     flavor,
+		Target:     target,
+		InitGit:    false,
+		AgentsOnly: true,
+	})
+	if err != nil {
+		t.Fatalf("Run(agents-only) error = %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(target, "cmd")); !os.IsNotExist(err) {
+		t.Fatalf("FreshOnlyPaths leaked: cmd/ should not exist, stat err = %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(target, "go.mod")); !os.IsNotExist(err) {
+		t.Fatalf("FreshOnlyPaths leaked: go.mod should not exist, stat err = %v", err)
+	}
+	assertFileContains(t, filepath.Join(target, "Justfile"), "AGENTS-JUSTFILE-myproj")
+	if _, err := os.Stat(filepath.Join(target, "Justfile.agents-only")); !os.IsNotExist(err) {
+		t.Fatalf("variant suffix leaked into destination, stat err = %v", err)
+	}
+	assertFileContains(t, filepath.Join(target, "README.md"), "UNCHANGED")
+}
+
+func TestRunFreshModeIgnoresAgentsOnlyVariants(t *testing.T) {
+	t.Parallel()
+	target := filepath.Join(t.TempDir(), "myproj")
+	flavor := flavors.Flavor{
+		Name: "test-agents-only-fresh",
+		Templates: fstest.MapFS{
+			"templates/cmd/{{.ProjectName}}/main.go": &fstest.MapFile{Data: []byte("FRESH-MAIN"), Mode: 0o644},
+			"templates/Justfile.tmpl":                &fstest.MapFile{Data: []byte("FRESH-JUSTFILE"), Mode: 0o644},
+			"templates/Justfile.agents-only.tmpl":    &fstest.MapFile{Data: []byte("AGENTS-JUSTFILE"), Mode: 0o644},
+		},
+		TemplateRoot:       "templates",
+		SupportsAgentsOnly: true,
+		FreshOnlyPaths:     []string{"cmd/{{.ProjectName}}/main.go"},
+	}
+
+	err := scaffold.Run(context.Background(), scaffold.Options{
+		Flavor:  flavor,
+		Target:  target,
+		InitGit: false,
+	})
+	if err != nil {
+		t.Fatalf("Run() error = %v", err)
+	}
+	assertFileContains(t, filepath.Join(target, "cmd", "myproj", "main.go"), "FRESH-MAIN")
+	assertFileContains(t, filepath.Join(target, "Justfile"), "FRESH-JUSTFILE")
+	if _, err := os.Stat(filepath.Join(target, "Justfile.agents-only")); !os.IsNotExist(err) {
+		t.Fatalf("agents-only variant leaked in fresh mode, stat err = %v", err)
+	}
+}
+
 func TestRunDoesNotInitNestedGitRepo(t *testing.T) {
 	t.Parallel()
 	parent := t.TempDir()
