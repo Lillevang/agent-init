@@ -19,7 +19,7 @@ func main() {
 		BuildDate: buildDate,
 	})
 	if err := app.Run(context.Background(), os.Args[1:]); err != nil {
-		fmt.Fprintf(os.Stderr, "agent-init: %v\n", err)
+		_, _ = fmt.Fprintf(os.Stderr, "agent-init: %v\n", err)
 		os.Exit(1)
 	}
 }

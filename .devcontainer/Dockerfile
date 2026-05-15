@@ -4,8 +4,8 @@ FROM mcr.microsoft.com/devcontainers/base:debian-12
 
 # The base image ships a `vscode` user (uid 1000) with passwordless sudo.
 ARG USERNAME=vscode
-ARG GO_VERSION=1.22.12
-ARG GOLANGCI_LINT_VERSION=v1.64.8
+ARG GO_VERSION=1.26.3
+ARG GOLANGCI_LINT_VERSION=v2.12.2
 
 # System packages
 RUN apt-get update && apt-get install -y --no-install-recommends \
@@ -20,7 +20,6 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
         shellcheck \
         tree \
         fd-find \
-        ffmpeg \
         unzip \
         xz-utils \
     && rm -rf /var/lib/apt/lists/*
@@ -33,12 +32,12 @@ RUN curl -fsSL "https://go.dev/dl/go${GO_VERSION}.linux-amd64.tar.gz" -o /tmp/go
 ENV PATH="/usr/local/go/bin:${PATH}"
 
 # Go lint/format/vuln helpers used by the local done gate.
-RUN curl -fsSL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh \
+RUN curl -fsSL https://golangci-lint.run/install.sh \
         | sh -s -- -b /usr/local/bin "${GOLANGCI_LINT_VERSION}" \
     && GOBIN=/usr/local/bin go install golang.org/x/tools/cmd/goimports@v0.30.0 \
     && GOBIN=/usr/local/bin go install golang.org/x/vuln/cmd/govulncheck@v1.1.4
 
-# Node.js 20 (for the agent CLIs and Playwright)
+# Node.js 20 — only for the agent CLIs (claude-code, codex, devcontainers).
 RUN curl -fsSL https://deb.nodesource.com/setup_20.x | bash - \
     && apt-get install -y --no-install-recommends nodejs \
     && rm -rf /var/lib/apt/lists/*
@@ -67,14 +66,6 @@ RUN npm install -g \
         @anthropic-ai/claude-code \
         @openai/codex \
         @devcontainers/cli
-
-# OpenAPI generators (pick what you need; both are fine to have)
-RUN npm install -g \
-        @openapitools/openapi-generator-cli \
-        openapi-typescript
-
-# Playwright with browsers (heavy; comment out if you don't need frontend testing)
-RUN npm install -g playwright && npx playwright install --with-deps chromium
 
 # post-create helper
 COPY post-create.sh /usr/local/bin/post-create.sh

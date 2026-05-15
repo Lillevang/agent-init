@@ -170,12 +170,12 @@ func contentDiff(want, got []byte) string {
 	if err != nil {
 		return fmt.Sprintf("(diff unavailable: %v)", err)
 	}
-	defer os.Remove(wantFile)
+	defer func() { _ = os.Remove(wantFile) }()
 	gotFile, err := writeTempFile(got)
 	if err != nil {
 		return fmt.Sprintf("(diff unavailable: %v)", err)
 	}
-	defer os.Remove(gotFile)
+	defer func() { _ = os.Remove(gotFile) }()
 	cmd := exec.Command("diff", "-u", "--label", "golden", "--label", "scaffolded", wantFile, gotFile)
 	output, _ := cmd.CombinedOutput()
 	lines := strings.Split(strings.TrimRight(string(output), "\n"), "\n")
@@ -192,12 +192,12 @@ func writeTempFile(data []byte) (string, error) {
 		return "", err
 	}
 	if _, err := f.Write(data); err != nil {
-		f.Close()
-		os.Remove(f.Name())
+		_ = f.Close()
+		_ = os.Remove(f.Name())
 		return "", err
 	}
 	if err := f.Close(); err != nil {
-		os.Remove(f.Name())
+		_ = os.Remove(f.Name())
 		return "", err
 	}
 	return f.Name(), nil

@@ -38,7 +38,7 @@ func Run(ctx context.Context, opts Options) error {
 		return err
 	}
 	data := templateData{ProjectName: filepath.Base(target)}
-	fmt.Fprintf(out, "-> Scaffolding %s agentic dev environment in: %s\n", opts.Flavor.Name, target)
+	_, _ = fmt.Fprintf(out, "-> Scaffolding %s agentic dev environment in: %s\n", opts.Flavor.Name, target)
 	if err := writeTemplates(opts, target, data, out); err != nil {
 		return err
 	}
@@ -164,11 +164,11 @@ func writeFile(opts Options, target, rel string, content []byte, out io.Writer) 
 		return fmt.Errorf("checking %s: %w", rel, err)
 	}
 	if exists && !opts.Force {
-		fmt.Fprintf(out, "  skip   %s (exists, use --force to overwrite)\n", rel)
+		_, _ = fmt.Fprintf(out, "  skip   %s (exists, use --force to overwrite)\n", rel)
 		return nil
 	}
 	if opts.DryRun {
-		fmt.Fprintf(out, "  write  %s (dry-run)\n", rel)
+		_, _ = fmt.Fprintf(out, "  write  %s (dry-run)\n", rel)
 		return nil
 	}
 	if exists {
@@ -194,7 +194,7 @@ func writeFile(opts Options, target, rel string, content []byte, out io.Writer) 
 	if err := os.Chmod(dst, mode); err != nil {
 		return fmt.Errorf("setting permissions on %s: %w", rel, err)
 	}
-	fmt.Fprintf(out, "  write  %s\n", rel)
+	_, _ = fmt.Fprintf(out, "  write  %s\n", rel)
 	return nil
 }
 
@@ -253,7 +253,7 @@ func link(opts Options, dir, name, dest string, out io.Writer) error {
 		return nil
 	}
 	if opts.DryRun {
-		fmt.Fprintf(out, "  link   %s -> %s (dry-run)\n", display, dest)
+		_, _ = fmt.Fprintf(out, "  link   %s -> %s (dry-run)\n", display, dest)
 		return nil
 	}
 	if exists {
@@ -270,7 +270,7 @@ func link(opts Options, dir, name, dest string, out io.Writer) error {
 	if err := os.Symlink(dest, path); err != nil {
 		return fmt.Errorf("creating symlink %s: %w", display, err)
 	}
-	fmt.Fprintf(out, "  link   %s -> %s\n", display, dest)
+	_, _ = fmt.Fprintf(out, "  link   %s -> %s\n", display, dest)
 	return nil
 }
 
@@ -279,7 +279,7 @@ func initGit(ctx context.Context, target string, dryRun bool, out io.Writer) err
 		return nil
 	}
 	if dryRun {
-		fmt.Fprintln(out, "  init   git repository (dry-run)")
+		_, _ = fmt.Fprintln(out, "  init   git repository (dry-run)")
 		return nil
 	}
 	cmd := exec.CommandContext(ctx, "git", "init", "-q")
@@ -287,16 +287,16 @@ func initGit(ctx context.Context, target string, dryRun bool, out io.Writer) err
 	if err := cmd.Run(); err != nil {
 		return fmt.Errorf("initializing git repository: %w", err)
 	}
-	fmt.Fprintln(out, "  init   git repository")
+	_, _ = fmt.Fprintln(out, "  init   git repository")
 	return nil
 }
 
 func printNextSteps(out io.Writer, flavor flavors.Flavor, target string) {
 	if flavor.NextSteps != nil {
-		fmt.Fprint(out, flavor.NextSteps(target))
+		_, _ = fmt.Fprint(out, flavor.NextSteps(target))
 		return
 	}
-	fmt.Fprintf(out, `
+	_, _ = fmt.Fprintf(out, `
 Done.
 
 Next steps:
