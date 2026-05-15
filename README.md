@@ -2,6 +2,10 @@
 
 `agent-init` adds an agentic development workflow to a Go, TypeScript, or Infrastructure-as-Code project — primarily by enhancing one you already have, optionally by bootstrapping a new repo from scratch.
 
+It also supports project management workspaces, by bootstrapping agents and folder structures as well as MCP integrations for Azure DevOps, Jira or GitHub.
+
+In addition you can bootstrap a workspace for claude cowork, useful for projects centered around documents, analysis and design rather than implementation.
+
 ## What it's for
 
 The primary use case is **adding agents to existing projects**. Most code already exists. Run:
