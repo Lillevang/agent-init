@@ -42,6 +42,16 @@ func DefaultRegistry() Registry {
 			CommonRoot:      "templates",
 			ExecutablePaths: append(commonExec, gocli.ExecutablePaths()...),
 			Symlinks:        codeFlavorSymlinks(),
+			// --agents-only mode: skip the Go bootstrap files (entry point,
+			// go.mod, version package) and use Justfile.agents-only.tmpl
+			// which omits the layout-specific build/cross-build recipes.
+			SupportsAgentsOnly: true,
+			FreshOnlyPaths: []string{
+				"cmd/{{.ProjectName}}/main.go",
+				"go.mod",
+				"internal/version/version.go",
+				"internal/version/version_test.go",
+			},
 		},
 		Flavor{
 			Name:            "go-backend",

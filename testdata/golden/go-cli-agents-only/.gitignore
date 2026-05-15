@@ -1,0 +1,32 @@
+# Agent artifacts
+.agent/REVIEW.md
+.agent/sessions/
+.agent/*.log
+
+# OS / editor
+.DS_Store
+*.swp
+*.swo
+.idea/
+.vscode/settings.json
+
+# Secrets — extra paranoia
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# Go build outputs
+/dist/
+/build/
+/bin/
+*.exe
+*.test
+*.out
+coverage.out
+coverage.txt
+
+# Go workspace files (uncomment if you opt in to workspaces)
+# go.work
+# go.work.sum

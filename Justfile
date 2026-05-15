@@ -86,6 +86,7 @@ smoke-test:
     trap 'rm -rf "$tmp"' EXIT
     flavors=$(go run ./cmd/agent-init list-flavors | awk '{print $1}')
     for flavor in $flavors; do
+        # Fresh mode
         echo "→ smoke-testing flavor: $flavor"
         target="$tmp/$flavor"
         go run ./cmd/agent-init init --no-git "$flavor" "$target"
@@ -97,6 +98,23 @@ smoke-test:
             (cd "$target" && just check)
         fi
         diff -ruN "testdata/golden/$flavor" "$target"
+        # Agents-only mode (only flavors that support it). Probed with --dry-run
+        # so flavors without SupportsAgentsOnly exit cleanly here.
+        # `just check` is intentionally NOT run inside the agents-only output:
+        # the scaffold expects to be added to an existing project, so it
+        # ships no go.mod / cmd/ and golangci-lint has nothing to check
+        # against in a bare tempdir. We still regenerate the codemap because
+        # the golden snapshot includes its output.
+        if go run ./cmd/agent-init init --dry-run --no-git --agents-only "$flavor" "$tmp/_probe" >/dev/null 2>&1; then
+            echo "→ smoke-testing flavor: $flavor (agents-only)"
+            target="$tmp/$flavor-agents-only"
+            go run ./cmd/agent-init init --no-git --agents-only "$flavor" "$target"
+            test -f "$target/AGENTS.md" || test -f "$target/.agent/AGENTS.md"
+            if [[ -x "$target/.agent/scripts/gen-codemap.sh" ]]; then
+                (cd "$target" && ./.agent/scripts/gen-codemap.sh) >/dev/null
+            fi
+            diff -ruN "testdata/golden/$flavor-agents-only" "$target"
+        fi
     done
 
 # Regenerate every flavor's smoke-test golden snapshot
@@ -108,6 +126,7 @@ smoke-test-update:
     flavors=$(go run ./cmd/agent-init list-flavors | awk '{print $1}')
     mkdir -p testdata/golden
     for flavor in $flavors; do
+        # Fresh mode
         echo "→ regenerating golden for flavor: $flavor"
         target="$tmp/$flavor"
         go run ./cmd/agent-init init --no-git "$flavor" "$target"
@@ -116,6 +135,18 @@ smoke-test-update:
         fi
         rm -rf "testdata/golden/$flavor"
         cp -a "$target" "testdata/golden/$flavor"
+        # Agents-only mode (only flavors that support it). See `smoke-test`
+        # comment for why `just check` is skipped here.
+        if go run ./cmd/agent-init init --dry-run --no-git --agents-only "$flavor" "$tmp/_probe" >/dev/null 2>&1; then
+            echo "→ regenerating golden for flavor: $flavor (agents-only)"
+            target="$tmp/$flavor-agents-only"
+            go run ./cmd/agent-init init --no-git --agents-only "$flavor" "$target"
+            if [[ -x "$target/.agent/scripts/gen-codemap.sh" ]]; then
+                (cd "$target" && ./.agent/scripts/gen-codemap.sh) >/dev/null
+            fi
+            rm -rf "testdata/golden/$flavor-agents-only"
+            cp -a "$target" "testdata/golden/$flavor-agents-only"
+        fi
     done
 
 # Invoke reviewer agent

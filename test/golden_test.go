@@ -13,17 +13,36 @@ import (
 	"github.com/Lillevang/agent-init/internal/testflags"
 )
 
+type goldenCase struct {
+	name       string
+	flavor     string
+	agentsOnly bool
+}
+
 func TestFlavorGolden(t *testing.T) {
-	flavors := []string{"claude-cowork", "fullstack", "go-backend", "go-cli", "iac", "project-management"}
+	cases := []goldenCase{
+		{name: "claude-cowork", flavor: "claude-cowork"},
+		{name: "fullstack", flavor: "fullstack"},
+		{name: "go-backend", flavor: "go-backend"},
+		{name: "go-cli", flavor: "go-cli"},
+		{name: "go-cli-agents-only", flavor: "go-cli", agentsOnly: true},
+		{name: "iac", flavor: "iac"},
+		{name: "project-management", flavor: "project-management"},
+	}
 	binary := buildAgentInit(t)
-	for _, flavor := range flavors {
-		flavor := flavor
-		t.Run(flavor, func(t *testing.T) {
-			target := filepath.Join(t.TempDir(), flavor)
-			runAgentInit(t, binary, "init", "--no-git", flavor, target)
+	for _, c := range cases {
+		c := c
+		t.Run(c.name, func(t *testing.T) {
+			target := filepath.Join(t.TempDir(), c.name)
+			args := []string{"init", "--no-git"}
+			if c.agentsOnly {
+				args = append(args, "--agents-only")
+			}
+			args = append(args, c.flavor, target)
+			runAgentInit(t, binary, args...)
 			runGeneratedCodemap(t, target)
 
-			golden := filepath.Join("..", "testdata", "golden", flavor)
+			golden := filepath.Join("..", "testdata", "golden", c.name)
 			if *testflags.Update {
 				if err := os.RemoveAll(golden); err != nil {
 					t.Fatalf("remove golden: %v", err)

@@ -51,7 +51,7 @@ Features that exist in the code but don't yet have a doc entry. The next agent t
 ### Flavors
 
 - [ ] `flavors/fullstack.md` — TypeScript/Node frontend + backend, Playwright recording, OpenAPI client generation. Source: [internal/flavors/fullstack/](../internal/flavors/fullstack/).
-- [ ] `flavors/go-cli.md` — `cmd/{{.ProjectName}}/main.go`, `internal/`, `cross-build`, `golangci-lint`. Source: [internal/flavors/gocli/](../internal/flavors/gocli/).
+- [x] `flavors/go-cli.md` — fresh-project Go CLI scaffold + `--agents-only` mode for existing projects.
 - [ ] `flavors/go-backend.md` — `cmd/server`, `internal/api`, `/healthz`, `run-dev`. Source: [internal/flavors/gobackend/](../internal/flavors/gobackend/).
 
 ## Style

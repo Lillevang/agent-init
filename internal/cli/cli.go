@@ -86,6 +86,7 @@ func (a App) runInit(ctx context.Context, args []string) error {
 	force := flags.Bool("force", false, "overwrite existing files")
 	noGit := flags.Bool("no-git", false, "skip git init when target is not already a repo")
 	dryRun := flags.Bool("dry-run", false, "print what would happen without writing files")
+	agentsOnly := flags.Bool("agents-only", false, "ship only the agentic envelope (skip fresh-project files); for adding agents to an existing project")
 	if err := flags.Parse(args); err != nil {
 		if errors.Is(err, flag.ErrHelp) {
 			return nil
@@ -115,13 +116,17 @@ func (a App) runInit(ctx context.Context, args []string) error {
 	if err != nil {
 		return a.unknownFlavorError(flavorName)
 	}
+	if *agentsOnly && !flavor.SupportsAgentsOnly {
+		return fmt.Errorf("flavor %q does not support --agents-only", flavor.Name)
+	}
 	return scaffold.Run(ctx, scaffold.Options{
-		Flavor:  flavor,
-		Target:  target,
-		Force:   *force,
-		InitGit: !*noGit,
-		DryRun:  *dryRun,
-		Out:     a.out,
+		Flavor:     flavor,
+		Target:     target,
+		Force:      *force,
+		InitGit:    !*noGit,
+		DryRun:     *dryRun,
+		AgentsOnly: *agentsOnly,
+		Out:        a.out,
 	})
 }
 
@@ -250,6 +255,8 @@ Flags for init:
   --force                    overwrite existing files
   --no-git                   skip git init when target is not already a repo
   --dry-run                  print what would happen without writing files
+  --agents-only              ship only the agentic envelope; skip fresh-project files
+                             (for flavors that support it, e.g. go-cli)
 
 Flags for add-tracker:
   --force                    overwrite existing tracker files
