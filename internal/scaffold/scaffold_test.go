@@ -10,9 +10,9 @@ import (
 	"testing"
 	"testing/fstest"
 
-	"github.com/mikeschinkel/agent-init/internal/flavors"
-	"github.com/mikeschinkel/agent-init/internal/scaffold"
-	_ "github.com/mikeschinkel/agent-init/internal/testflags"
+	"github.com/Lillevang/agent-init/internal/flavors"
+	"github.com/Lillevang/agent-init/internal/scaffold"
+	_ "github.com/Lillevang/agent-init/internal/testflags"
 )
 
 func TestRunWritesFullstackScaffold(t *testing.T) {

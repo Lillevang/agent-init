@@ -11,9 +11,9 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/mikeschinkel/agent-init/internal/flavors"
-	"github.com/mikeschinkel/agent-init/internal/scaffold"
-	"github.com/mikeschinkel/agent-init/internal/trackers"
+	"github.com/Lillevang/agent-init/internal/flavors"
+	"github.com/Lillevang/agent-init/internal/scaffold"
+	"github.com/Lillevang/agent-init/internal/trackers"
 )
 
 type Version struct {

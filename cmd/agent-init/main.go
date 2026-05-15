@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/mikeschinkel/agent-init/internal/cli"
+	"github.com/Lillevang/agent-init/internal/cli"
 )
 
 var (
