@@ -6,7 +6,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/mikeschinkel/agent-init/internal/trackers"
+	"github.com/Lillevang/agent-init/internal/trackers"
 )
 
 func TestMergeMCPServerAddsNewEntryToEmptyConfig(t *testing.T) {

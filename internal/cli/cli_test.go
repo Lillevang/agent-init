@@ -8,8 +8,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/mikeschinkel/agent-init/internal/cli"
-	_ "github.com/mikeschinkel/agent-init/internal/testflags"
+	"github.com/Lillevang/agent-init/internal/cli"
+	_ "github.com/Lillevang/agent-init/internal/testflags"
 )
 
 func TestListFlavors(t *testing.T) {

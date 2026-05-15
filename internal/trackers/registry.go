@@ -4,9 +4,9 @@ import (
 	"fmt"
 	"sort"
 
-	"github.com/mikeschinkel/agent-init/internal/trackers/ado"
-	"github.com/mikeschinkel/agent-init/internal/trackers/gh"
-	"github.com/mikeschinkel/agent-init/internal/trackers/jira"
+	"github.com/Lillevang/agent-init/internal/trackers/ado"
+	"github.com/Lillevang/agent-init/internal/trackers/gh"
+	"github.com/Lillevang/agent-init/internal/trackers/jira"
 )
 
 // Registry holds the set of known trackers, looked up by name.

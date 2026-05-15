@@ -4,12 +4,12 @@ import (
 	"fmt"
 	"sort"
 
-	"github.com/mikeschinkel/agent-init/internal/flavors/claudecowork"
-	"github.com/mikeschinkel/agent-init/internal/flavors/common"
-	"github.com/mikeschinkel/agent-init/internal/flavors/fullstack"
-	"github.com/mikeschinkel/agent-init/internal/flavors/gobackend"
-	"github.com/mikeschinkel/agent-init/internal/flavors/gocli"
-	"github.com/mikeschinkel/agent-init/internal/flavors/projectmgmt"
+	"github.com/Lillevang/agent-init/internal/flavors/claudecowork"
+	"github.com/Lillevang/agent-init/internal/flavors/common"
+	"github.com/Lillevang/agent-init/internal/flavors/fullstack"
+	"github.com/Lillevang/agent-init/internal/flavors/gobackend"
+	"github.com/Lillevang/agent-init/internal/flavors/gocli"
+	"github.com/Lillevang/agent-init/internal/flavors/projectmgmt"
 )
 
 type Registry struct {

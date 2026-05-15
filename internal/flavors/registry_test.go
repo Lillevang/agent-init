@@ -7,7 +7,7 @@ import (
 	"testing"
 	"text/template"
 
-	"github.com/mikeschinkel/agent-init/internal/flavors"
+	"github.com/Lillevang/agent-init/internal/flavors"
 )
 
 // TestAllTemplatesParse walks every registered flavor's Templates and

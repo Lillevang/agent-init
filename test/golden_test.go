@@ -10,7 +10,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/mikeschinkel/agent-init/internal/testflags"
+	"github.com/Lillevang/agent-init/internal/testflags"
 )
 
 func TestFlavorGolden(t *testing.T) {
