@@ -1,0 +1,27 @@
+---
+# Top-level orchestration playbook. Apply roles to inventory groups.
+# Run with: ansible-playbook -i ansible/inventory/hosts.yml ansible/playbooks/site.yml
+
+- name: Configure all hosts (baseline)
+  hosts: all
+  gather_facts: true
+  become: true
+  tasks:
+    - name: Confirm host is reachable
+      ansible.builtin.ping:
+
+# Example role application — uncomment when you have roles to apply.
+#
+# - name: Configure web tier
+#   hosts: web
+#   become: true
+#   roles:
+#     - role: base
+#     - role: nginx
+#
+# - name: Configure database tier
+#   hosts: db
+#   become: true
+#   roles:
+#     - role: base
+#     - role: postgres

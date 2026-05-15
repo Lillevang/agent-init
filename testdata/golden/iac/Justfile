@@ -1,0 +1,186 @@
+# Justfile for iac, an Infrastructure-as-Code project
+# (Terraform + Ansible). Recipes auto-detect which toolchain is in use and
+# no-op gracefully when a tool is missing — so the same Justfile works in
+# a Terraform-only repo, an Ansible-only repo, or a mixed one.
+
+set shell := ["bash", "-uc"]
+
+default:
+    @just --list
+
+# Full done-gate
+check:
+    ./.agent/scripts/check.sh
+
+# Regenerate codemap
+codemap:
+    ./.agent/scripts/gen-codemap.sh
+
+# Format: terraform fmt -recursive (yamllint has no autofix; ansible-lint --fix
+# exists but is opinionated, so left out by default).
+fmt:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    if compgen -G "**/*.tf" > /dev/null 2>&1 || compgen -G "*.tf" > /dev/null 2>&1; then
+        if command -v terraform >/dev/null 2>&1; then
+            terraform fmt -recursive
+        else
+            echo "terraform not installed, skipping terraform fmt"
+        fi
+    else
+        echo "no Terraform files, skipping terraform fmt"
+    fi
+
+# Lint: tflint per terraform directory, ansible-lint when playbooks/roles
+# exist, yamllint always.
+lint:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    rc=0
+
+    if compgen -G "**/*.tf" > /dev/null 2>&1 || compgen -G "*.tf" > /dev/null 2>&1; then
+        if command -v tflint >/dev/null 2>&1 && [[ -f .tflint.hcl ]]; then
+            echo "→ tflint"
+            tflint --recursive || rc=$?
+        else
+            echo "tflint not installed or .tflint.hcl missing, skipping"
+        fi
+    fi
+
+    if [[ -d ansible/playbooks ]] || [[ -d ansible/roles ]] || [[ -d playbooks ]] || [[ -d roles ]]; then
+        if command -v ansible-lint >/dev/null 2>&1; then
+            echo "→ ansible-lint"
+            ansible-lint || rc=$?
+        else
+            echo "ansible-lint not installed, skipping"
+        fi
+    fi
+
+    if command -v yamllint >/dev/null 2>&1; then
+        echo "→ yamllint"
+        yamllint . || rc=$?
+    else
+        echo "yamllint not installed, skipping"
+    fi
+
+    exit $rc
+
+# Typecheck: terraform validate per module, ansible-playbook --syntax-check
+# per playbook.
+typecheck:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    rc=0
+
+    if command -v terraform >/dev/null 2>&1; then
+        # Find every directory containing a .tf file (excluding .terraform/).
+        mapfile -d '' tfdirs < <(find . -type d \
+                                      \( -path './.git' -o -path '*/.terraform' \) -prune -o \
+                                      -type f -name '*.tf' -printf '%h\0' 2>/dev/null \
+                                  | sort -zu)
+        for tfdir in "${tfdirs[@]}"; do
+            [[ -z "$tfdir" ]] && continue
+            echo "→ terraform validate ($tfdir)"
+            # validate requires init; -backend=false avoids credentials.
+            (cd "$tfdir" && terraform init -backend=false -input=false >/dev/null 2>&1 && terraform validate) || rc=$?
+        done
+    else
+        echo "terraform not installed, skipping terraform validate"
+    fi
+
+    if command -v ansible-playbook >/dev/null 2>&1; then
+        for pb in ansible/playbooks/*.yml playbooks/*.yml; do
+            [[ -f "$pb" ]] || continue
+            echo "→ ansible-playbook --syntax-check $pb"
+            ansible-playbook --syntax-check "$pb" || rc=$?
+        done
+    else
+        echo "ansible-playbook not installed, skipping syntax-check"
+    fi
+
+    exit $rc
+
+# Test: terraform test if tests/ exists; molecule test if molecule/ exists;
+# otherwise no-op.
+test:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    ran=0
+    rc=0
+
+    if [[ -d tests ]] && command -v terraform >/dev/null 2>&1; then
+        echo "→ terraform test"
+        terraform test || rc=$?
+        ran=1
+    fi
+
+    if [[ -d molecule ]] && command -v molecule >/dev/null 2>&1; then
+        echo "→ molecule test"
+        molecule test || rc=$?
+        ran=1
+    fi
+
+    if [[ $ran -eq 0 ]]; then
+        echo "no tests/ or molecule/ directory, skipping test"
+    fi
+
+    exit $rc
+
+# Security: tfsec + trivy config. Advisory — not invoked by `just check`.
+# Add a CI job that runs this separately and gates on its output.
+security:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    rc=0
+
+    if command -v tfsec >/dev/null 2>&1; then
+        echo "→ tfsec"
+        tfsec . || rc=$?
+    else
+        echo "tfsec not installed, skipping"
+    fi
+
+    if command -v trivy >/dev/null 2>&1; then
+        echo "→ trivy config"
+        trivy config . || rc=$?
+    else
+        echo "trivy not installed, skipping"
+    fi
+
+    exit $rc
+
+# Convenience: initialise every terraform module with -backend=false so
+# `validate` works. Run this after pulling new modules.
+tf-init:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    if ! command -v terraform >/dev/null 2>&1; then
+        echo "terraform not installed" >&2
+        exit 1
+    fi
+    while IFS= read -r -d '' tfdir; do
+        echo "→ terraform init -backend=false in $tfdir"
+        (cd "$tfdir" && terraform init -backend=false -input=false -upgrade)
+    done < <(find . -type d \
+                  \( -path './.git' -o -path '*/.terraform' \) -prune -o \
+                  -type f -name '*.tf' -printf '%h\0' 2>/dev/null \
+              | sort -zu)
+
+# Install Ansible collection/role dependencies declared in requirements.yml.
+ansible-deps:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    if ! command -v ansible-galaxy >/dev/null 2>&1; then
+        echo "ansible-galaxy not installed" >&2
+        exit 1
+    fi
+    for req in requirements.yml ansible/requirements.yml; do
+        if [[ -f "$req" ]]; then
+            echo "→ ansible-galaxy install -r $req"
+            ansible-galaxy install -r "$req"
+        fi
+    done
+
+# Invoke reviewer agent
+review:
+    ./.agent/scripts/review.sh

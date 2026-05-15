@@ -1,0 +1,15 @@
+# Example inventory. Copy to inventory/hosts.yml (gitignored) and fill in
+# real hostnames/IPs. Do NOT commit hosts.yml — it leaks topology.
+
+all:
+  vars:
+    ansible_user: ubuntu
+    ansible_ssh_private_key_file: ~/.ssh/id_ed25519
+  children:
+    web:
+      hosts:
+        web1.example.invalid:
+        web2.example.invalid:
+    db:
+      hosts:
+        db1.example.invalid:

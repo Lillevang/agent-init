@@ -1,0 +1,14 @@
+---
+# Ansible Galaxy collection and role dependencies. Installed by
+# `just ansible-deps` (or automatically by the devcontainer post-create
+# hook). Leave the lists empty when there's nothing to install.
+
+collections: []
+  # - name: community.general
+  #   version: ">=9.0.0,<10.0.0"
+  # - name: ansible.posix
+  #   version: ">=1.5.0"
+
+roles: []
+  # - name: geerlingguy.docker
+  #   version: "7.0.1"

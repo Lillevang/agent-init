@@ -9,6 +9,7 @@ import (
 	"github.com/Lillevang/agent-init/internal/flavors/fullstack"
 	"github.com/Lillevang/agent-init/internal/flavors/gobackend"
 	"github.com/Lillevang/agent-init/internal/flavors/gocli"
+	"github.com/Lillevang/agent-init/internal/flavors/iac"
 	"github.com/Lillevang/agent-init/internal/flavors/projectmgmt"
 )
 
@@ -51,6 +52,17 @@ func DefaultRegistry() Registry {
 			CommonTemplates: commonTemplates,
 			CommonRoot:      "templates",
 			ExecutablePaths: append(commonExec, gobackend.ExecutablePaths()...),
+			Symlinks:        codeFlavorSymlinks(),
+		},
+		Flavor{
+			Name:            "iac",
+			DisplayName:     "Infrastructure as Code",
+			Description:     "Combined Terraform + Ansible scaffold. Devcontainer ships terraform, tflint, tfsec, trivy, ansible-core, ansible-lint, yamllint. Justfile recipes auto-detect which toolchain is in use; same scaffold works in Terraform-only, Ansible-only, or mixed repos.",
+			Templates:       iac.Templates(),
+			TemplateRoot:    "templates",
+			CommonTemplates: commonTemplates,
+			CommonRoot:      "templates",
+			ExecutablePaths: append(commonExec, iac.ExecutablePaths()...),
 			Symlinks:        codeFlavorSymlinks(),
 		},
 		Flavor{

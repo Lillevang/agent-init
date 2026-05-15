@@ -1,0 +1,56 @@
+repos:
+  # Generic hygiene
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v5.0.0
+    hooks:
+      - id: trailing-whitespace
+      - id: end-of-file-fixer
+      - id: check-yaml
+        # Ansible YAML uses custom tags (!vault) that PyYAML's safe loader
+        # rejects. Either use --unsafe here or rely on yamllint instead.
+        args: ['--unsafe']
+      - id: check-added-large-files
+        args: ['--maxkb=500']
+      - id: check-merge-conflict
+      - id: detect-private-key
+
+  # Terraform
+  - repo: https://github.com/antonbabenko/pre-commit-terraform
+    rev: v1.96.2
+    hooks:
+      - id: terraform_fmt
+      - id: terraform_validate
+        args:
+          - --tf-init-args=-backend=false
+          - --tf-init-args=-upgrade
+      - id: terraform_tflint
+
+  # Ansible
+  - repo: https://github.com/ansible/ansible-lint
+    rev: v24.10.0
+    hooks:
+      - id: ansible-lint
+        # ansible-lint is opinionated; tune .ansible-lint to match house style.
+        files: '(playbooks/.*\.ya?ml|roles/.*\.ya?ml)$'
+
+  # YAML
+  - repo: https://github.com/adrienverge/yamllint
+    rev: v1.35.1
+    hooks:
+      - id: yamllint
+        args: ['--strict', '-c', '.yamllint.yml']
+
+  - repo: local
+    hooks:
+      - id: check
+        name: agent done-gate (just check)
+        entry: just check
+        language: system
+        pass_filenames: false
+        stages: [pre-push]
+
+# Notes:
+# - terraform_validate runs `terraform init -backend=false` automatically per
+#   module, so no credentials are needed at pre-commit time.
+# - ansible-lint is slow; consider moving it to stages: [pre-push] if commits
+#   start to drag.
