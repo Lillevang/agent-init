@@ -14,6 +14,9 @@
 .idea/
 .vscode/settings.json
 
+# Claude Code per-session permission overrides; not shared state.
+.claude/settings.local.json
+
 # Secrets — extra paranoia
 .env
 .env.*
