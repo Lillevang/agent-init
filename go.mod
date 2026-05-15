@@ -1,4 +1,4 @@
-module github.com/mikeschinkel/agent-init
+module github.com/Lillevang/agent-init
 
 go 1.22
 
