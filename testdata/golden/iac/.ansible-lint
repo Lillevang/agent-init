@@ -1,0 +1,20 @@
+# ansible-lint baseline.
+
+profile: production
+
+exclude_paths:
+  - .agent/
+  - .terraform/
+  - .venv/
+  - venv/
+  - .molecule/
+  - terraform/
+
+# Skip rules that conflict with team style or are noisy in early-stage repos.
+# Re-enable as the codebase matures.
+skip_list:
+  - yaml[line-length]   # handled by yamllint
+  - fqcn[action-core]   # noisy when starting out; encourage but don't fail
+
+use_default_rules: true
+verbosity: 1

@@ -14,7 +14,7 @@ import (
 )
 
 func TestFlavorGolden(t *testing.T) {
-	flavors := []string{"claude-cowork", "fullstack", "go-backend", "go-cli", "project-management"}
+	flavors := []string{"claude-cowork", "fullstack", "go-backend", "go-cli", "iac", "project-management"}
 	binary := buildAgentInit(t)
 	for _, flavor := range flavors {
 		flavor := flavor

@@ -1,0 +1,59 @@
+# Agent artifacts
+.agent/REVIEW.md
+.agent/sessions/
+.agent/*.log
+
+# OS / editor
+.DS_Store
+*.swp
+*.swo
+.idea/
+.vscode/settings.json
+
+# Secrets — extra paranoia
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# Terraform
+**/.terraform/
+**/.terraform.lock.hcl.bak
+*.tfstate
+*.tfstate.*
+*.tfstate.backup
+crash.log
+crash.*.log
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+.terraformrc
+terraform.rc
+# tfvars commonly contain account-specific values; commit *.auto.tfvars for
+# defaults that ARE meant to be shared and *.tfvars.example for examples.
+*.tfvars
+!*.auto.tfvars
+!*.tfvars.example
+
+# Ansible
+*.retry
+.vault_pass
+.vault_pass*
+# Real inventory (with hostnames/IPs) — commit hosts.yml.example instead.
+inventory/hosts
+inventory/hosts.yml
+inventory/hosts.yaml
+ansible/inventory/hosts
+ansible/inventory/hosts.yml
+ansible/inventory/hosts.yaml
+
+# Python (yamllint, ansible run artifacts)
+.venv/
+venv/
+__pycache__/
+*.pyc
+
+# Molecule
+.molecule/

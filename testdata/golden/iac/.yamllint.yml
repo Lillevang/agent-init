@@ -1,0 +1,28 @@
+# yamllint configuration. Intentionally relaxed where Ansible idioms conflict
+# with strict YAML style — e.g. truthy values (yes/no), long lines in inline
+# Jinja expressions, and comment indentation in block sequences.
+
+extends: default
+
+rules:
+  line-length:
+    max: 200
+    level: warning
+  truthy:
+    allowed-values: ['true', 'false', 'yes', 'no']
+    check-keys: false
+  comments-indentation: disable
+  comments:
+    min-spaces-from-content: 1
+  braces:
+    max-spaces-inside: 1
+  octal-values:
+    forbid-implicit-octal: true
+    forbid-explicit-octal: false
+
+ignore: |
+  .terraform/
+  .venv/
+  venv/
+  .molecule/
+  node_modules/
