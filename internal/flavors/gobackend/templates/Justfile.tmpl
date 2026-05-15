@@ -41,6 +41,16 @@ lint:
 typecheck:
     go vet ./...
 
+# Run govulncheck against the module. Advisory: surfaces stdlib + dep CVEs.
+vulncheck:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    if ! command -v govulncheck >/dev/null 2>&1; then
+        echo "govulncheck not installed, skipping"
+        exit 0
+    fi
+    govulncheck ./...
+
 # Run unit tests
 test:
     go test ./...

@@ -130,7 +130,7 @@ func (a App) runListFlavors(args []string) error {
 		return fmt.Errorf("usage: agent-init list-flavors")
 	}
 	for _, flavor := range a.registry.List() {
-		fmt.Fprintf(a.out, "%s\t%s\n", flavor.Name, flavor.Description)
+		_, _ = fmt.Fprintf(a.out, "%s\t%s\n", flavor.Name, flavor.Description)
 	}
 	return nil
 }
@@ -140,7 +140,7 @@ func (a App) runListTrackers(args []string) error {
 		return fmt.Errorf("usage: agent-init list-trackers")
 	}
 	for _, t := range a.trackers.List() {
-		fmt.Fprintf(a.out, "%s\t%s\n", t.Name, t.Description)
+		_, _ = fmt.Fprintf(a.out, "%s\t%s\n", t.Name, t.Description)
 	}
 	return nil
 }
@@ -174,7 +174,7 @@ func (a App) runAddTracker(ctx context.Context, args []string) error {
 		return fmt.Errorf("target %q does not look like a project-management scaffold (no .mcp.json found). Run `agent-init init project-management %s` first", target, target)
 	}
 
-	fmt.Fprintf(a.out, "-> Adding %s tracker integration to: %s\n", tracker.DisplayName, target)
+	_, _ = fmt.Fprintf(a.out, "-> Adding %s tracker integration to: %s\n", tracker.DisplayName, target)
 	if err := scaffold.Overlay(scaffold.Options{
 		Target: target,
 		Force:  *force,
@@ -185,7 +185,7 @@ func (a App) runAddTracker(ctx context.Context, args []string) error {
 	}
 
 	if *dryRun {
-		fmt.Fprintf(a.out, "  merge  .mcp.json: would add %q under mcpServers (dry-run)\n", tracker.MCPServerKey)
+		_, _ = fmt.Fprintf(a.out, "  merge  .mcp.json: would add %q under mcpServers (dry-run)\n", tracker.MCPServerKey)
 		return nil
 	}
 	changed, err := trackers.MergeMCPServer(target, tracker.MCPServerKey, tracker.MCPServer)
@@ -193,9 +193,9 @@ func (a App) runAddTracker(ctx context.Context, args []string) error {
 		return fmt.Errorf("merging .mcp.json: %w", err)
 	}
 	if changed {
-		fmt.Fprintf(a.out, "  merge  .mcp.json: added %q under mcpServers\n", tracker.MCPServerKey)
+		_, _ = fmt.Fprintf(a.out, "  merge  .mcp.json: added %q under mcpServers\n", tracker.MCPServerKey)
 	} else {
-		fmt.Fprintf(a.out, "  skip   .mcp.json: %q already present under mcpServers\n", tracker.MCPServerKey)
+		_, _ = fmt.Fprintf(a.out, "  skip   .mcp.json: %q already present under mcpServers\n", tracker.MCPServerKey)
 	}
 	// The integrations subfolder is named by the tracker package's template
 	// layout (e.g. integrations/github/, integrations/jira/), not the
@@ -203,9 +203,9 @@ func (a App) runAddTracker(ctx context.Context, args []string) error {
 	// path matches what was actually written.
 	folder := trackerIntegrationFolder(tracker)
 	if folder != "" {
-		fmt.Fprintf(a.out, "\nDone. Review %s/integrations/%s/README.md for setup notes.\n", target, folder)
+		_, _ = fmt.Fprintf(a.out, "\nDone. Review %s/integrations/%s/README.md for setup notes.\n", target, folder)
 	} else {
-		fmt.Fprintf(a.out, "\nDone. Review the new files under %s/integrations/.\n", target)
+		_, _ = fmt.Fprintf(a.out, "\nDone. Review the new files under %s/integrations/.\n", target)
 	}
 	return nil
 }
@@ -230,12 +230,12 @@ func (a App) runVersion(args []string) error {
 	if len(args) > 0 {
 		return fmt.Errorf("usage: agent-init version")
 	}
-	fmt.Fprintf(a.out, "agent-init commit=%s buildDate=%s\n", a.version.Commit, a.version.BuildDate)
+	_, _ = fmt.Fprintf(a.out, "agent-init commit=%s buildDate=%s\n", a.version.Commit, a.version.BuildDate)
 	return nil
 }
 
 func (a App) printHelp() {
-	fmt.Fprintln(a.out, `agent-init scaffolds repositories for sandboxed agentic development.
+	_, _ = fmt.Fprintln(a.out, `agent-init scaffolds repositories for sandboxed agentic development.
 
 Usage:
   agent-init init [flavor] [target-dir]

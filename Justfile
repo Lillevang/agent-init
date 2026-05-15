@@ -59,14 +59,13 @@ vulncheck:
 typecheck:
     go vet ./...
 
-# Verify go.mod / go.sum are tidy. Fails if go mod tidy would change them.
+# Verify go.mod / go.sum are tidy. Fails if `go mod tidy` would change them.
 mod-tidy:
     #!/usr/bin/env bash
     set -euo pipefail
-    go mod tidy
-    if ! git diff --quiet --exit-code -- go.mod go.sum; then
+    if ! diff=$(go mod tidy -diff 2>&1); then
         echo "ERROR: go.mod or go.sum is not tidy. Run 'go mod tidy' and commit the result." >&2
-        git --no-pager diff -- go.mod go.sum
+        echo "$diff" >&2
         exit 1
     fi
 
