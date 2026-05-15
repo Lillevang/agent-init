@@ -11,8 +11,7 @@ A Go CLI that scaffolds repositories for sandboxed agentic development with Code
 | `go-backend` | Go HTTP backend with `cmd/server`, `internal/api` router, a `/healthz` handler, and `run-dev` / `cross-build` recipes. |
 | `claude-cowork` | OneDrive-backed document collaboration folder for Claude Cowork. No devcontainer / Justfile / symlinks; root-level `AGENTS.md` + `decisions.md` + `corrections.md` + `reference/`, `templates/`, `archive/`. |
 | `project-management` | Project-management workspace (epics, meetings, decisions, stakeholders, time plans). Ships five skills (`/intake-meeting`, `/break-down-epic`, `/log-decision`, `/track-stakeholder`, `/sync-tracker`) and supports MCP tracker integrations via `agent-init add-tracker {jira\|ado\|gh}`. |
-
-Planned: `terraform`, `ansible`.
+| `iac` | Combined Terraform + Ansible scaffold. Ships `terraform/` (root module, `modules/`) and `ansible/` (`inventory/`, `playbooks/`, `roles/`) trees, a devcontainer with `terraform` + `tflint` + `tfsec` + `trivy` + `ansible-core` + `ansible-lint` + `yamllint`, and a Justfile whose recipes auto-detect which toolchain is present. Cloud-credential and `~/.ssh` mounts are commented out by default with a warning. |
 
 ## Build
 
@@ -69,7 +68,7 @@ The `add-tracker` subcommand extends a `project-management` scaffold with a Jira
 
 ## What It Writes
 
-The three **code flavors** (`fullstack`, `go-cli`, `go-backend`) all produce this skeleton:
+The **code flavors** (`fullstack`, `go-cli`, `go-backend`, `iac`) all produce this skeleton:
 
 ```text
 your-project/
@@ -96,6 +95,7 @@ On top of that skeleton, each code flavor adds its own files:
 - `fullstack` — `apis/`, `clients/`, an OpenAPI-aware Justfile, and a Playwright `record-feature.sh` script.
 - `go-cli` — `cmd/{{.ProjectName}}/main.go` (rendered to your target dir name), `internal/version/`, `go.mod`, and a Justfile with `build`, `cross-build`.
 - `go-backend` — `cmd/server/main.go`, `internal/api/handlers.go` + tests, `go.mod`, and a Justfile with `run-dev`, `build`, `cross-build`.
+- `iac` — `terraform/` (root module + `modules/`) and `ansible/` (`inventory/`, `playbooks/`, `roles/`, `requirements.yml`) trees, `ansible.cfg`, `.tflint.hcl`, `.yamllint.yml`, `.ansible-lint`, and a Justfile whose `fmt` / `lint` / `typecheck` / `test` / `security` recipes auto-detect whether Terraform, Ansible, or both are present. Ships a flavor-local `gen-codemap.sh` that surfaces TF modules, root `.tf` `variable` / `output` / `resource` declarations, Ansible roles, and playbook task counts.
 
 The `claude-cowork` flavor uses a deliberately different shape — no devcontainer, no symlinks, no `.agent/` subdirectory:
 
