@@ -63,7 +63,7 @@ Flags for `init`:
 - `--force` — overwrite existing files instead of skipping them.
 - `--no-git` — skip `git init` when the target is not already a repository.
 - `--dry-run` — print planned writes without changing files.
-- `--agents-only` — skip the flavor's fresh-project files; ship only the agentic envelope. For adding `agent-init` to an existing project. Supported on flavors that opt in (today: `go-cli`). See [`docs/flavors/go-cli.md`](./docs/flavors/go-cli.md).
+- `--agents-only` — skip the flavor's fresh-project files; ship only the agentic envelope (AGENTS.md, scripts, devcontainer, Justfile, pre-commit). For adding `agent-init` to an existing project. Supported on every code flavor: `fullstack`, `go-cli`, `go-backend`, `iac`. See [`docs/flavors/go-cli.md`](./docs/flavors/go-cli.md) for a worked example.
 
 The `add-tracker` subcommand extends a `project-management` scaffold with a Jira / Azure DevOps / GitHub integration. Each call writes an `integrations/<tracker>/` cheatsheet and merges an entry into the target's `.mcp.json`. Idempotent and additive — multiple trackers can coexist (useful during migrations). See [`docs/cli.md`](./docs/cli.md) and [`docs/flavors/project-management.md`](./docs/flavors/project-management.md) for details.
 
@@ -94,7 +94,9 @@ your-project/
 On top of that skeleton, each code flavor adds its own files:
 
 - `fullstack` — `apis/`, `clients/`, an OpenAPI-aware Justfile, and a Playwright `record-feature.sh` script.
-- `go-cli` — `cmd/{{.ProjectName}}/main.go` (rendered to your target dir name), `internal/version/`, `go.mod`, and a Justfile with `build`, `cross-build`. Supports `--agents-only` to ship just the envelope into an existing Go CLI; see [`docs/flavors/go-cli.md`](./docs/flavors/go-cli.md).
+- `go-cli` — `cmd/{{.ProjectName}}/main.go` (rendered to your target dir name), `internal/version/`, `go.mod`, and a Justfile with `build`, `cross-build`. Supports `--agents-only` (see [`docs/flavors/go-cli.md`](./docs/flavors/go-cli.md)).
+
+Every code flavor supports `--agents-only` for adding the envelope to an existing project. Per-flavor `FreshOnlyPaths` and (where layout-specific recipes need replacement) `Justfile.agents-only.tmpl` variants are declared in [`internal/flavors/registry.go`](./internal/flavors/registry.go).
 - `go-backend` — `cmd/server/main.go`, `internal/api/handlers.go` + tests, `go.mod`, and a Justfile with `run-dev`, `build`, `cross-build`.
 - `iac` — `terraform/` (root module + `modules/`) and `ansible/` (`inventory/`, `playbooks/`, `roles/`, `requirements.yml`) trees, `ansible.cfg`, `.tflint.hcl`, `.yamllint.yml`, `.ansible-lint`, and a Justfile whose `fmt` / `lint` / `typecheck` / `test` / `security` recipes auto-detect whether Terraform, Ansible, or both are present. Ships a flavor-local `gen-codemap.sh` that surfaces TF modules, root `.tf` `variable` / `output` / `resource` declarations, Ansible roles, and playbook task counts.
 

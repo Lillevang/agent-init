@@ -132,9 +132,11 @@ func TestInitAgentsOnlyRejectsUnsupportedFlavor(t *testing.T) {
 	t.Parallel()
 	app := cli.New(&bytes.Buffer{}, &bytes.Buffer{}, cli.Version{})
 
-	err := app.Run(context.Background(), []string{"init", "--no-git", "--agents-only", "fullstack", t.TempDir()})
+	// project-management is a doc-collab flavor; it has no "fresh project"
+	// vs "existing project" distinction so --agents-only is rejected.
+	err := app.Run(context.Background(), []string{"init", "--no-git", "--agents-only", "project-management", t.TempDir()})
 	if err == nil {
-		t.Fatal("Run(init --agents-only fullstack) error = nil; want rejection")
+		t.Fatal("Run(init --agents-only project-management) error = nil; want rejection")
 	}
 	if !strings.Contains(err.Error(), "agents-only") {
 		t.Fatalf("error = %v; want to mention --agents-only", err)

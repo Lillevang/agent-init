@@ -50,8 +50,13 @@ Plus the canonical code-flavor symlinks (`AGENTS.md` ↔ `.agent/AGENTS.md`, `CL
 ## Usage
 
 ```bash
-agent-init init iac path/to/new-repo
+agent-init init iac path/to/new-repo                       # fresh scaffold
+agent-init init iac --agents-only path/to/existing-repo    # envelope only
 ```
+
+With `--agents-only`, the scaffold skips the Terraform/Ansible boilerplate (`terraform/*.tf`, `terraform/modules/`, `ansible/`, `ansible.cfg`) and writes only the agentic envelope: `.agent/`, `.devcontainer/`, `Justfile`, `.pre-commit-config.yaml`, `.gitignore`, `.tflint.hcl`, `.yamllint.yml`, `.ansible-lint`. The Justfile is the same in both modes — recipes already auto-detect whether Terraform / Ansible files are present, so no variant is needed.
+
+Lint configs (`.tflint.hcl`, `.yamllint.yml`, `.ansible-lint`) are written even in agents-only mode because they're inert when matching files aren't present, and the engine's skip-existing behavior protects whatever you already have.
 
 After scaffolding:
 

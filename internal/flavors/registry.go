@@ -31,6 +31,15 @@ func DefaultRegistry() Registry {
 			CommonRoot:      "templates",
 			ExecutablePaths: append(commonExec, fullstack.ExecutablePaths()...),
 			Symlinks:        codeFlavorSymlinks(),
+			// --agents-only mode: skip the OpenAPI client-generation
+			// placeholders. The shipped Justfile is already layout-agnostic
+			// (every recipe no-ops gracefully when package.json / tsconfig
+			// are absent), so no variant is needed.
+			SupportsAgentsOnly: true,
+			FreshOnlyPaths: []string{
+				"apis/README.md",
+				"clients/README.md",
+			},
 		},
 		Flavor{
 			Name:            "go-cli",
@@ -63,6 +72,17 @@ func DefaultRegistry() Registry {
 			CommonRoot:      "templates",
 			ExecutablePaths: append(commonExec, gobackend.ExecutablePaths()...),
 			Symlinks:        codeFlavorSymlinks(),
+			// --agents-only mode: skip the Go bootstrap (entry point, go.mod,
+			// example router + tests) and use Justfile.agents-only.tmpl,
+			// which omits run-dev/build/cross-build because they hardcode
+			// ./cmd/server.
+			SupportsAgentsOnly: true,
+			FreshOnlyPaths: []string{
+				"cmd/server/main.go",
+				"go.mod",
+				"internal/api/handlers.go",
+				"internal/api/handlers_test.go",
+			},
 		},
 		Flavor{
 			Name:            "iac",
@@ -74,6 +94,25 @@ func DefaultRegistry() Registry {
 			CommonRoot:      "templates",
 			ExecutablePaths: append(commonExec, iac.ExecutablePaths()...),
 			Symlinks:        codeFlavorSymlinks(),
+			// --agents-only mode: skip the Terraform/Ansible boilerplate
+			// (root modules, example playbooks). Lint configs are kept:
+			// they're inert until the user adds matching files, and existing
+			// configs are skipped via the engine's exists-check anyway.
+			// The shipped Justfile is already auto-detecting, so no variant
+			// is needed.
+			SupportsAgentsOnly: true,
+			FreshOnlyPaths: []string{
+				"terraform/main.tf",
+				"terraform/outputs.tf",
+				"terraform/variables.tf",
+				"terraform/versions.tf",
+				"terraform/modules/.gitkeep",
+				"ansible/inventory/hosts.yml.example",
+				"ansible/playbooks/site.yml",
+				"ansible/requirements.yml",
+				"ansible/roles/.gitkeep",
+				"ansible.cfg",
+			},
 		},
 		Flavor{
 			Name:            "claude-cowork",

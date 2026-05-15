@@ -30,7 +30,7 @@ agent-init ./my-tool                      # path-only form; implies fullstack
 | `--force` | Overwrite existing files instead of skipping them. Default: skip with a notice. |
 | `--no-git` | Skip `git init` when the target is not already a repo. |
 | `--dry-run` | Print planned writes without changing files. |
-| `--agents-only` | Skip the flavor's fresh-project files; ship only the agentic envelope (AGENTS.md, scripts, devcontainer, Justfile, pre-commit). For adding agents to an existing project. Errors if the flavor doesn't declare `SupportsAgentsOnly`. Supported flavors today: `go-cli`. |
+| `--agents-only` | Skip the flavor's fresh-project files; ship only the agentic envelope (AGENTS.md, scripts, devcontainer, Justfile, pre-commit). For adding agents to an existing project. Supported on every code flavor: `fullstack`, `go-cli`, `go-backend`, `iac`. Rejected on doc-collab flavors (`claude-cowork`, `project-management`) since they don't bootstrap a project layout. |
 
 ### Behavior
 

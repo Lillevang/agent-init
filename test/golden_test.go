@@ -23,10 +23,13 @@ func TestFlavorGolden(t *testing.T) {
 	cases := []goldenCase{
 		{name: "claude-cowork", flavor: "claude-cowork"},
 		{name: "fullstack", flavor: "fullstack"},
+		{name: "fullstack-agents-only", flavor: "fullstack", agentsOnly: true},
 		{name: "go-backend", flavor: "go-backend"},
+		{name: "go-backend-agents-only", flavor: "go-backend", agentsOnly: true},
 		{name: "go-cli", flavor: "go-cli"},
 		{name: "go-cli-agents-only", flavor: "go-cli", agentsOnly: true},
 		{name: "iac", flavor: "iac"},
+		{name: "iac-agents-only", flavor: "iac", agentsOnly: true},
 		{name: "project-management", flavor: "project-management"},
 	}
 	binary := buildAgentInit(t)
