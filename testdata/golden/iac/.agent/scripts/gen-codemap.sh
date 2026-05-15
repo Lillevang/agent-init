@@ -13,6 +13,11 @@
 set -euo pipefail
 shopt -s globstar nullglob
 
+# Pin locale so `tree` and `sort` use ASCII byte order. Without this, dev
+# containers with a UTF-8 locale produce case-insensitive ordering that
+# diverges from CI runners, causing golden tests to fail.
+export LC_ALL=C
+
 REPO_ROOT="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
 cd "$REPO_ROOT"
 
