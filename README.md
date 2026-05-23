@@ -6,6 +6,23 @@ It also supports project management workspaces, by bootstrapping agents and fold
 
 In addition you can bootstrap a workspace for claude cowork, useful for projects centered around documents, analysis and design rather than implementation.
 
+## Documentation
+
+This README is the front door. The full reference lives under [`docs/`](./docs/):
+
+- [`docs/README.md`](./docs/README.md) — the docs index and per-feature documentation convention.
+- [`docs/cli.md`](./docs/cli.md) — full CLI reference: every subcommand, flag, and exit behavior.
+- [`docs/engine/flavor-hooks.md`](./docs/engine/flavor-hooks.md) — the per-flavor engine hooks (`Symlinks`, `NextSteps`, `CommonTemplates`) that let one engine serve code and non-code flavors.
+
+One page per flavor:
+
+- [`docs/flavors/fullstack.md`](./docs/flavors/fullstack.md) — TypeScript/Node frontend + backend, Playwright recording, OpenAPI clients.
+- [`docs/flavors/go-cli.md`](./docs/flavors/go-cli.md) — Go command-line tool; includes a worked `--agents-only` example.
+- [`docs/flavors/go-backend.md`](./docs/flavors/go-backend.md) — Go HTTP backend with `/healthz`.
+- [`docs/flavors/iac.md`](./docs/flavors/iac.md) — combined Terraform + Ansible scaffold.
+- [`docs/flavors/claude-cowork.md`](./docs/flavors/claude-cowork.md) — OneDrive-backed document-collaboration workspace.
+- [`docs/flavors/project-management.md`](./docs/flavors/project-management.md) — project-management workspace; ships five skills and tracker integrations.
+
 ## What it's for
 
 The primary use case is **adding agents to existing projects**. Most code already exists. Run:
@@ -25,12 +42,12 @@ Two things this is trying to enforce:
 
 | Flavor | What it scaffolds |
 |--------|-------------------|
-| `fullstack` | TypeScript/Node frontend + backend with Playwright recording and OpenAPI client generation. |
-| `go-cli` | Go command-line tool with `cmd/{{.ProjectName}}/` (path-templated), `internal/`, cross-build via Justfile, and `golangci-lint`. |
-| `go-backend` | Go HTTP backend with `cmd/server`, `internal/api` router, a `/healthz` handler, and `run-dev` / `cross-build` recipes. |
-| `claude-cowork` | OneDrive-backed document collaboration folder for Claude Cowork. No devcontainer / Justfile / symlinks; root-level `AGENTS.md` + `decisions.md` + `corrections.md` + `reference/`, `templates/`, `archive/`. |
-| `project-management` | Project-management workspace (epics, meetings, decisions, stakeholders, time plans). Ships five skills (`/intake-meeting`, `/break-down-epic`, `/log-decision`, `/track-stakeholder`, `/sync-tracker`) and supports MCP tracker integrations via `agent-init add-tracker {jira\|ado\|gh}`. |
-| `iac` | Combined Terraform + Ansible scaffold. Ships `terraform/` (root module, `modules/`) and `ansible/` (`inventory/`, `playbooks/`, `roles/`) trees, a devcontainer with `terraform` + `tflint` + `tfsec` + `trivy` + `ansible-core` + `ansible-lint` + `yamllint`, and a Justfile whose recipes auto-detect which toolchain is present. Cloud-credential and `~/.ssh` mounts are commented out by default with a warning. |
+| [`fullstack`](./docs/flavors/fullstack.md) | TypeScript/Node frontend + backend with Playwright recording and OpenAPI client generation. |
+| [`go-cli`](./docs/flavors/go-cli.md) | Go command-line tool with `cmd/{{.ProjectName}}/` (path-templated), `internal/`, cross-build via Justfile, and `golangci-lint`. |
+| [`go-backend`](./docs/flavors/go-backend.md) | Go HTTP backend with `cmd/server`, `internal/api` router, a `/healthz` handler, and `run-dev` / `cross-build` recipes. |
+| [`claude-cowork`](./docs/flavors/claude-cowork.md) | OneDrive-backed document collaboration folder for Claude Cowork. No devcontainer / Justfile / symlinks; root-level `AGENTS.md` + `decisions.md` + `corrections.md` + `reference/`, `templates/`, `archive/`. |
+| [`project-management`](./docs/flavors/project-management.md) | Project-management workspace (epics, meetings, decisions, stakeholders, time plans). Ships five skills (`/intake-meeting`, `/break-down-epic`, `/log-decision`, `/track-stakeholder`, `/sync-tracker`) and supports MCP tracker integrations via `agent-init add-tracker {jira\|ado\|gh}`. |
+| [`iac`](./docs/flavors/iac.md) | Combined Terraform + Ansible scaffold. Ships `terraform/` (root module, `modules/`) and `ansible/` (`inventory/`, `playbooks/`, `roles/`) trees, a devcontainer with `terraform` + `tflint` + `tfsec` + `trivy` + `ansible-core` + `ansible-lint` + `yamllint`, and a Justfile whose recipes auto-detect which toolchain is present. Cloud-credential and `~/.ssh` mounts are commented out by default with a warning. |
 
 ## Build
 
@@ -66,23 +83,32 @@ Defaults: flavor `fullstack`, target `.`.
 
 Run `agent-init --help` for the subcommand list, and `agent-init <command> --help` for a command's flags and examples. See [`docs/cli.md`](./docs/cli.md) for the full reference.
 
-Examples:
+Examples. Each block states what the command writes and what it leaves alone.
 
 ```bash
 # Primary use case: add the agentic envelope to an existing project.
-# Drops in .devcontainer/, .agent/, Justfile, .pre-commit-config.yaml, etc.
-# Does NOT touch go.mod, package.json, main.go, or anything else you already have.
 agent-init init go-cli --agents-only ~/repos/my-existing-cli
-agent-init init fullstack --agents-only ~/repos/my-existing-app
-agent-init init iac --agents-only ~/repos/my-existing-infra
+# Writes: .devcontainer/, .agent/ (AGENTS.md, CODEBASE.md, CORRECTIONS.md, scripts/),
+#   AGENTS.md and CLAUDE.md symlinks, Justfile, .pre-commit-config.yaml, .gitignore.
+# Leaves untouched: go.mod, main.go, internal/, and all your existing source.
+# Verify: `ls .agent && cat AGENTS.md`. See docs/flavors/go-cli.md for a full walkthrough.
+```
 
+```bash
 # Bootstrap mode: scaffold a brand-new repo with the flavor's project layout.
 agent-init init go-cli ./my-new-tool
-agent-init init fullstack            # current directory, default flavor
-agent-init ./my-new-tool             # path syntax, implies fullstack
+# Writes: the agentic envelope above PLUS the fresh-project files —
+#   cmd/my-new-tool/main.go, internal/version/, go.mod, build/cross-build Justfile recipes.
+# Verify: `cd my-new-tool && just check` should pass on the empty scaffold.
 
+agent-init init fullstack            # current directory, default flavor (fullstack)
+agent-init ./my-new-tool             # path syntax with no flavor, implies fullstack
+```
+
+```bash
 # Preview without writing anything.
 agent-init init go-backend --agents-only --dry-run ~/repos/my-service
+# Prints the planned writes (one line per file) and exits. No files change on disk.
 ```
 
 Flags for `init`:
