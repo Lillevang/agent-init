@@ -16,9 +16,87 @@ import (
 	"github.com/Lillevang/agent-init/internal/trackers"
 )
 
+// docsURL points users at the full documentation. Surfaced in top-level help.
+const docsURL = "https://github.com/Lillevang/agent-init/tree/main/docs"
+
 type Version struct {
 	Commit    string
 	BuildDate string
+}
+
+// commandHelp is the single source of truth for a subcommand's help text.
+// Both the rendered --help output and docs/cli.md are kept in sync against
+// these values (see TestHelpFlagsMatchDocs), so help is plain data, not prose
+// scattered across handlers.
+type commandHelp struct {
+	name     string
+	summary  string
+	usage    string
+	flags    []flagHelp
+	examples []string
+}
+
+type flagHelp struct {
+	name string
+	desc string
+}
+
+// commands lists every subcommand in display order. Order matters: it drives
+// the top-level help listing.
+var commands = []commandHelp{
+	{
+		name:    "init",
+		summary: "scaffold a project from a flavor",
+		usage:   "agent-init init [flavor] [target-dir]",
+		flags: []flagHelp{
+			{"--force", "overwrite existing files instead of skipping them"},
+			{"--no-git", "skip git init when the target is not already a repo"},
+			{"--dry-run", "print planned writes without changing files"},
+			{"--agents-only", "ship only the agentic envelope (skip fresh-project files); rejected on claude-cowork and project-management"},
+		},
+		examples: []string{
+			"agent-init init                      # scaffold fullstack into .",
+			"agent-init init go-cli ./my-tool     # scaffold go-cli into ./my-tool",
+			"agent-init init --agents-only go-cli # add agents to an existing project",
+		},
+	},
+	{
+		name:    "add-tracker",
+		summary: "overlay a tracker integration onto a project-management scaffold",
+		usage:   "agent-init add-tracker <tracker> <target-dir>",
+		flags: []flagHelp{
+			{"--force", "overwrite existing tracker files"},
+			{"--dry-run", "print what would happen without writing files or modifying .mcp.json"},
+		},
+		examples: []string{
+			"agent-init add-tracker gh   ~/work/pm   # valid trackers: gh, jira, ado",
+			"agent-init add-tracker jira ~/work/pm",
+		},
+	},
+	{
+		name:    "list-flavors",
+		summary: "print available flavors with descriptions",
+		usage:   "agent-init list-flavors",
+	},
+	{
+		name:    "list-trackers",
+		summary: "print available trackers with descriptions",
+		usage:   "agent-init list-trackers",
+	},
+	{
+		name:    "version",
+		summary: "print version info (commit + build date)",
+		usage:   "agent-init version",
+	},
+}
+
+func lookupCommand(name string) (commandHelp, bool) {
+	for _, c := range commands {
+		if c.name == name {
+			return c, true
+		}
+	}
+	return commandHelp{}, false
 }
 
 type App struct {
@@ -40,6 +118,12 @@ func New(out, errOut io.Writer, version Version) App {
 }
 
 func (a App) Run(ctx context.Context, args []string) error {
+	// Top-level help flags must be caught before the bare-flag fast path
+	// (which otherwise treats anything starting with "-" as init flags).
+	if len(args) > 0 && (args[0] == "-h" || args[0] == "--help") {
+		a.printHelp()
+		return nil
+	}
 	if len(args) == 0 || strings.HasPrefix(args[0], "-") {
 		return a.runInit(ctx, args)
 	}
@@ -54,14 +138,22 @@ func (a App) Run(ctx context.Context, args []string) error {
 		return a.runAddTracker(ctx, args[1:])
 	case "version":
 		return a.runVersion(args[1:])
-	case "help", "-h", "--help":
+	case "help":
+		// `help <subcommand>` prints that subcommand's help; bare help is
+		// the top-level overview. (`-h` / `--help` are caught earlier.)
+		if len(args) > 1 {
+			if cmd, ok := lookupCommand(args[1]); ok {
+				a.printCommandHelp(cmd)
+				return nil
+			}
+		}
 		a.printHelp()
 		return nil
 	default:
 		if _, err := a.registry.Get(args[0]); err == nil || looksLikeTarget(args[0]) {
 			return a.runInit(ctx, args)
 		}
-		return fmt.Errorf("unknown command %q", args[0])
+		return fmt.Errorf("unknown command %q\nRun 'agent-init --help' for usage", args[0])
 	}
 }
 
@@ -77,12 +169,42 @@ func (a App) unknownFlavorError(name string) error {
 	for _, f := range flavors {
 		known = append(known, f.Name)
 	}
-	return fmt.Errorf("unknown flavor %q (known: %s)", name, strings.Join(known, ", "))
+	return fmt.Errorf("unknown flavor %q (known: %s)\nRun 'agent-init init --help' for usage", name, strings.Join(known, ", "))
+}
+
+// newFlagSet builds a flag.FlagSet whose Usage prints the structured help for
+// the named command to stderr, so a parse error (e.g. an unknown flag) is
+// followed by that command's usage. An explicitly requested --help is handled
+// separately (see wantsHelp) and goes to stdout.
+func (a App) newFlagSet(name string) *flag.FlagSet {
+	flags := flag.NewFlagSet(name, flag.ContinueOnError)
+	flags.SetOutput(a.errOut)
+	if cmd, ok := lookupCommand(name); ok {
+		flags.Usage = func() { a.fprintCommandHelp(a.errOut, cmd) }
+	}
+	return flags
+}
+
+// wantsHelp reports whether args contains an explicit help flag. An explicit
+// --help is a successful request and its output belongs on stdout, unlike the
+// usage printed alongside a parse error (which the flag.FlagSet sends to
+// stderr).
+func wantsHelp(args []string) bool {
+	for _, arg := range args {
+		if arg == "-h" || arg == "--help" {
+			return true
+		}
+	}
+	return false
 }
 
 func (a App) runInit(ctx context.Context, args []string) error {
-	flags := flag.NewFlagSet("init", flag.ContinueOnError)
-	flags.SetOutput(a.errOut)
+	if wantsHelp(args) {
+		cmd, _ := lookupCommand("init")
+		a.printCommandHelp(cmd)
+		return nil
+	}
+	flags := a.newFlagSet("init")
 	force := flags.Bool("force", false, "overwrite existing files")
 	noGit := flags.Bool("no-git", false, "skip git init when target is not already a repo")
 	dryRun := flags.Bool("dry-run", false, "print what would happen without writing files")
@@ -110,7 +232,7 @@ func (a App) runInit(ctx context.Context, args []string) error {
 		flavorName = flags.Arg(0)
 		target = flags.Arg(1)
 	default:
-		return fmt.Errorf("usage: agent-init init [flavor] [target-dir]")
+		return fmt.Errorf("usage: agent-init init [flavor] [target-dir]\nRun 'agent-init init --help' for usage")
 	}
 	flavor, err := a.registry.Get(flavorName)
 	if err != nil {
@@ -131,8 +253,11 @@ func (a App) runInit(ctx context.Context, args []string) error {
 }
 
 func (a App) runListFlavors(args []string) error {
+	if handled := a.handleNoArgHelp("list-flavors", args); handled {
+		return nil
+	}
 	if len(args) > 0 {
-		return fmt.Errorf("usage: agent-init list-flavors")
+		return fmt.Errorf("usage: agent-init list-flavors\nRun 'agent-init --help' for usage")
 	}
 	for _, flavor := range a.registry.List() {
 		_, _ = fmt.Fprintf(a.out, "%s\t%s\n", flavor.Name, flavor.Description)
@@ -141,8 +266,11 @@ func (a App) runListFlavors(args []string) error {
 }
 
 func (a App) runListTrackers(args []string) error {
+	if handled := a.handleNoArgHelp("list-trackers", args); handled {
+		return nil
+	}
 	if len(args) > 0 {
-		return fmt.Errorf("usage: agent-init list-trackers")
+		return fmt.Errorf("usage: agent-init list-trackers\nRun 'agent-init --help' for usage")
 	}
 	for _, t := range a.trackers.List() {
 		_, _ = fmt.Fprintf(a.out, "%s\t%s\n", t.Name, t.Description)
@@ -150,10 +278,33 @@ func (a App) runListTrackers(args []string) error {
 	return nil
 }
 
+// handleNoArgHelp prints the command's help when the first argument is a help
+// flag. It exists because the flagless subcommands (list-flavors,
+// list-trackers, version) don't construct a flag.FlagSet and so wouldn't
+// otherwise recognize --help / -h.
+func (a App) handleNoArgHelp(name string, args []string) bool {
+	if len(args) == 0 {
+		return false
+	}
+	switch args[0] {
+	case "-h", "--help", "help":
+		if cmd, ok := lookupCommand(name); ok {
+			a.printCommandHelp(cmd)
+		}
+		return true
+	default:
+		return false
+	}
+}
+
 func (a App) runAddTracker(ctx context.Context, args []string) error {
 	_ = ctx
-	flags := flag.NewFlagSet("add-tracker", flag.ContinueOnError)
-	flags.SetOutput(a.errOut)
+	if wantsHelp(args) {
+		cmd, _ := lookupCommand("add-tracker")
+		a.printCommandHelp(cmd)
+		return nil
+	}
+	flags := a.newFlagSet("add-tracker")
 	force := flags.Bool("force", false, "overwrite existing tracker files")
 	dryRun := flags.Bool("dry-run", false, "print what would happen without writing files")
 	if err := flags.Parse(args); err != nil {
@@ -163,14 +314,14 @@ func (a App) runAddTracker(ctx context.Context, args []string) error {
 		return err
 	}
 	if flags.NArg() != 2 {
-		return fmt.Errorf("usage: agent-init add-tracker <tracker> <target-dir>")
+		return fmt.Errorf("usage: agent-init add-tracker <tracker> <target-dir>\nRun 'agent-init add-tracker --help' for usage")
 	}
 	trackerName := flags.Arg(0)
 	target := flags.Arg(1)
 
 	tracker, err := a.trackers.Get(trackerName)
 	if err != nil {
-		return err
+		return fmt.Errorf("%w\nRun 'agent-init add-tracker --help' for usage", err)
 	}
 	// Target must be an existing project-management scaffold. We use the
 	// presence of .mcp.json as the marker — `init project-management`
@@ -232,33 +383,56 @@ func trackerIntegrationFolder(t trackers.Tracker) string {
 }
 
 func (a App) runVersion(args []string) error {
+	if handled := a.handleNoArgHelp("version", args); handled {
+		return nil
+	}
 	if len(args) > 0 {
-		return fmt.Errorf("usage: agent-init version")
+		return fmt.Errorf("usage: agent-init version\nRun 'agent-init --help' for usage")
 	}
 	_, _ = fmt.Fprintf(a.out, "agent-init commit=%s buildDate=%s\n", a.version.Commit, a.version.BuildDate)
 	return nil
 }
 
+// printHelp renders the top-level overview from the commands table so the
+// subcommand list never drifts from what the binary actually dispatches.
 func (a App) printHelp() {
-	_, _ = fmt.Fprintln(a.out, `agent-init scaffolds repositories for sandboxed agentic development.
+	var b strings.Builder
+	b.WriteString("agent-init scaffolds repositories for sandboxed agentic development.\n\n")
+	b.WriteString("Usage:\n  agent-init <command> [arguments]\n")
+	b.WriteString("  agent-init [flavor] [target-dir]   # shorthand for 'init'\n\n")
+	b.WriteString("Commands:\n")
+	for _, c := range commands {
+		fmt.Fprintf(&b, "  %-14s %s\n", c.name, c.summary)
+	}
+	b.WriteString("\nThe default flavor is fullstack. The default target directory is the current directory.\n\n")
+	b.WriteString("Run 'agent-init <command> --help' for command-specific flags and examples.\n")
+	fmt.Fprintf(&b, "Documentation: %s\n", docsURL)
+	_, _ = fmt.Fprint(a.out, b.String())
+}
 
-Usage:
-  agent-init init [flavor] [target-dir]
-  agent-init add-tracker <tracker> <target-dir>
-  agent-init list-flavors
-  agent-init list-trackers
-  agent-init version
+// printCommandHelp writes a subcommand's help to stdout (used by explicit
+// `help <cmd>` / `<cmd> --help` on flagless subcommands).
+func (a App) printCommandHelp(c commandHelp) {
+	a.fprintCommandHelp(a.out, c)
+}
 
-The default flavor is fullstack. The default target directory is the current directory.
-
-Flags for init:
-  --force                    overwrite existing files
-  --no-git                   skip git init when target is not already a repo
-  --dry-run                  print what would happen without writing files
-  --agents-only              ship only the agentic envelope; skip fresh-project files
-                             (for flavors that support it, e.g. go-cli)
-
-Flags for add-tracker:
-  --force                    overwrite existing tracker files
-  --dry-run                  print what would happen without writing files`)
+// fprintCommandHelp renders one subcommand's structured help. It backs both the
+// stdout help paths and the flag.FlagSet Usage hook (which writes to errOut).
+func (a App) fprintCommandHelp(w io.Writer, c commandHelp) {
+	var b strings.Builder
+	fmt.Fprintf(&b, "%s — %s\n\n", c.name, c.summary)
+	fmt.Fprintf(&b, "Usage:\n  %s\n", c.usage)
+	if len(c.flags) > 0 {
+		b.WriteString("\nFlags:\n")
+		for _, f := range c.flags {
+			fmt.Fprintf(&b, "  %-14s %s\n", f.name, f.desc)
+		}
+	}
+	if len(c.examples) > 0 {
+		b.WriteString("\nExamples:\n")
+		for _, ex := range c.examples {
+			fmt.Fprintf(&b, "  %s\n", ex)
+		}
+	}
+	_, _ = fmt.Fprint(w, b.String())
 }

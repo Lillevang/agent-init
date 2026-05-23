@@ -114,20 +114,37 @@ In dev builds (`go run ./cmd/agent-init version`), prints `commit=dev buildDate=
 
 ## Help
 
+The binary documents its own usage. Help text is generated from a single data
+table in [cli.go](../internal/cli/cli.go) (`commands`), so it cannot drift from
+the dispatched subcommands. `TestHelpFlagsMatchDocs` also fails if a flag shown
+in `--help` is missing from this page.
+
 ```
-agent-init help          # or -h, --help
-agent-init init --help   # init-specific help via flag.ErrHelp
+agent-init --help        # or -h, or `agent-init help` — top-level overview
+agent-init init --help   # per-subcommand: usage form, flags, examples
+agent-init help init     # same content as `init --help`, printed to stdout
 agent-init add-tracker --help
+agent-init list-flavors --help
 ```
 
-The `--help` flag on subcommands returns cleanly (exit 0, no error printed) — `flag.ErrHelp` is recognized and swallowed.
+- **Top-level help** lists every subcommand with a one-line summary, the global
+  usage form, a pointer to per-command help, and the documentation URL.
+- **Per-subcommand help** prints that subcommand's usage form, its flags with
+  descriptions, and one or two worked examples.
+- `--help` exits 0 and prints to stdout. `-h` and `--help` are accepted on
+  every subcommand; the flagless ones (`list-flavors`, `list-trackers`,
+  `version`) recognize them too.
+- A genuine parse error (e.g. an unknown flag) prints the same command help to
+  stderr and exits non-zero.
 
 ## Error messages
 
-Two specific cases are worth knowing:
+Invalid input prints a short hint and points the user at `--help`, then exits
+non-zero. Specific cases worth knowing:
 
-- **Unknown flavor** prints the list of known flavors: `unknown flavor "foo" (known: claude-cowork, fullstack, go-backend, go-cli, project-management)`.
-- **Unknown tracker** prints the list of known trackers.
+- **Unknown subcommand** prints `unknown command "foo"` followed by `Run 'agent-init --help' for usage`.
+- **Unknown flavor** prints the list of known flavors: `unknown flavor "foo" (known: claude-cowork, fullstack, go-backend, go-cli, project-management)`, then the init `--help` hint.
+- **Unknown tracker** prints the list of known trackers, then the add-tracker `--help` hint.
 - **`add-tracker` on a target without `.mcp.json`** suggests the corresponding `init` command.
 
 Source: [`unknownFlavorError`](../internal/cli/cli.go) and the registry `Get` methods in [trackers/registry.go](../internal/trackers/registry.go) and [flavors/registry.go](../internal/flavors/registry.go).
