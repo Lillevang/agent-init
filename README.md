@@ -64,6 +64,8 @@ agent-init version
 
 Defaults: flavor `fullstack`, target `.`.
 
+Run `agent-init --help` for the subcommand list, and `agent-init <command> --help` for a command's flags and examples. See [`docs/cli.md`](./docs/cli.md) for the full reference.
+
 Examples:
 
 ```bash

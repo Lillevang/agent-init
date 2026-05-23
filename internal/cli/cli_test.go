@@ -93,10 +93,13 @@ func TestInitHelpFlagDoesNotError(t *testing.T) {
 	app := cli.New(&out, &errOut, cli.Version{})
 
 	if err := app.Run(context.Background(), []string{"init", "--help"}); err != nil {
-		t.Fatalf("Run(init --help) error = %v; flag.ErrHelp should not surface as an error", err)
+		t.Fatalf("Run(init --help) error = %v; an explicit --help should not surface as an error", err)
 	}
-	if !bytes.Contains(errOut.Bytes(), []byte("-force")) {
-		t.Fatalf("init --help did not print flag usage:\n%s", errOut.String())
+	if !bytes.Contains(out.Bytes(), []byte("--force")) {
+		t.Fatalf("init --help did not print flag usage to stdout:\n%s", out.String())
+	}
+	if errOut.Len() != 0 {
+		t.Fatalf("init --help wrote to stderr; explicit help belongs on stdout:\n%s", errOut.String())
 	}
 }
 
@@ -265,6 +268,147 @@ func TestAddTrackerRejectsUnknownTracker(t *testing.T) {
 	err := app.Run(context.Background(), []string{"add-tracker", "github-but-misspelled", target})
 	if err == nil {
 		t.Fatal("expected error for unknown tracker")
+	}
+}
+
+func TestTopLevelHelpListsAllSubcommands(t *testing.T) {
+	t.Parallel()
+	for _, trigger := range [][]string{{"--help"}, {"-h"}, {"help"}} {
+		trigger := trigger
+		t.Run(strings.Join(trigger, " "), func(t *testing.T) {
+			t.Parallel()
+			var out bytes.Buffer
+			app := cli.New(&out, &bytes.Buffer{}, cli.Version{})
+			if err := app.Run(context.Background(), trigger); err != nil {
+				t.Fatalf("Run(%v) error = %v; help must exit 0", trigger, err)
+			}
+			got := out.String()
+			for _, sub := range []string{"init", "add-tracker", "list-flavors", "list-trackers", "version"} {
+				if !strings.Contains(got, sub) {
+					t.Errorf("top-level help missing subcommand %q:\n%s", sub, got)
+				}
+			}
+			if !strings.Contains(got, "--help") {
+				t.Errorf("top-level help should point at per-command --help:\n%s", got)
+			}
+			if !strings.Contains(got, "docs") {
+				t.Errorf("top-level help should point at the docs:\n%s", got)
+			}
+		})
+	}
+}
+
+func TestSubcommandHelpPrintsFlagsAndExamples(t *testing.T) {
+	t.Parallel()
+	cases := []struct {
+		name string
+		want []string
+	}{
+		{"init", []string{"--force", "--no-git", "--dry-run", "--agents-only", "Examples"}},
+		{"add-tracker", []string{"--force", "--dry-run", "gh", "Examples"}},
+	}
+	for _, tc := range cases {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			// An explicit `<sub> --help` is a success and prints to stdout.
+			var out, errOut bytes.Buffer
+			app := cli.New(&out, &errOut, cli.Version{})
+			if err := app.Run(context.Background(), []string{tc.name, "--help"}); err != nil {
+				t.Fatalf("Run(%s --help) error = %v", tc.name, err)
+			}
+			got := out.String()
+			for _, want := range tc.want {
+				if !strings.Contains(got, want) {
+					t.Errorf("%s --help missing %q:\n%s", tc.name, want, got)
+				}
+			}
+
+			// `help <sub>` writes the same content to stdout.
+			var out2 bytes.Buffer
+			app2 := cli.New(&out2, &bytes.Buffer{}, cli.Version{})
+			if err := app2.Run(context.Background(), []string{"help", tc.name}); err != nil {
+				t.Fatalf("Run(help %s) error = %v", tc.name, err)
+			}
+			for _, want := range tc.want {
+				if !strings.Contains(out2.String(), want) {
+					t.Errorf("help %s missing %q:\n%s", tc.name, want, out2.String())
+				}
+			}
+		})
+	}
+}
+
+func TestFlaglessSubcommandHelp(t *testing.T) {
+	t.Parallel()
+	for _, name := range []string{"list-flavors", "list-trackers", "version"} {
+		name := name
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			var out bytes.Buffer
+			app := cli.New(&out, &bytes.Buffer{}, cli.Version{})
+			if err := app.Run(context.Background(), []string{name, "--help"}); err != nil {
+				t.Fatalf("Run(%s --help) error = %v", name, err)
+			}
+			if !strings.Contains(out.String(), name) {
+				t.Errorf("%s --help did not print its own usage:\n%s", name, out.String())
+			}
+		})
+	}
+}
+
+func TestUnknownCommandErrorPointsAtHelp(t *testing.T) {
+	t.Parallel()
+	app := cli.New(&bytes.Buffer{}, &bytes.Buffer{}, cli.Version{})
+	err := app.Run(context.Background(), []string{"versoin"})
+	if err == nil {
+		t.Fatal("Run(unknown command) error = nil; misuse must exit non-zero")
+	}
+	if !strings.Contains(err.Error(), "--help") {
+		t.Fatalf("unknown command error should reference --help; got: %v", err)
+	}
+}
+
+func TestUnknownFlavorErrorPointsAtHelp(t *testing.T) {
+	t.Parallel()
+	app := cli.New(&bytes.Buffer{}, &bytes.Buffer{}, cli.Version{})
+	err := app.Run(context.Background(), []string{"init", "missing-flavor", t.TempDir()})
+	if err == nil {
+		t.Fatal("Run(init missing-flavor) error = nil")
+	}
+	if !strings.Contains(err.Error(), "--help") {
+		t.Fatalf("unknown flavor error should reference --help; got: %v", err)
+	}
+}
+
+// TestHelpFlagsMatchDocs guards the issue-20 "no drift" criterion: every flag
+// the binary documents in `<subcommand> --help` must also be described in
+// docs/cli.md. Help text is the source of truth; this test fails loudly if the
+// docs fall behind it.
+func TestHelpFlagsMatchDocs(t *testing.T) {
+	t.Parallel()
+	docs, err := os.ReadFile(filepath.Join("..", "..", "docs", "cli.md"))
+	if err != nil {
+		t.Fatalf("read docs/cli.md: %v", err)
+	}
+	doc := string(docs)
+
+	for _, sub := range []string{"init", "add-tracker"} {
+		var out bytes.Buffer
+		app := cli.New(&out, &bytes.Buffer{}, cli.Version{})
+		if err := app.Run(context.Background(), []string{sub, "--help"}); err != nil {
+			t.Fatalf("Run(%s --help) error = %v", sub, err)
+		}
+		for _, line := range strings.Split(out.String(), "\n") {
+			line = strings.TrimSpace(line)
+			if !strings.HasPrefix(line, "--") {
+				continue
+			}
+			flag := strings.Fields(line)[0]
+			if !strings.Contains(doc, flag) {
+				t.Errorf("docs/cli.md does not document flag %q from `%s --help` (drift)", flag, sub)
+			}
+		}
 	}
 }
 
