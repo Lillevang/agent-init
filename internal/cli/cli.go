@@ -19,10 +19,10 @@ import (
 )
 
 // visibility selects how the scaffold's agentic envelope is tracked by git.
-// The flag has four planned values; this build implements "shared" (default)
-// and "local". "hidden" and "global-default" are recognized so the flag
-// surface stays stable, but rejected with a not-yet-implemented error until
-// their follow-up issues (#53, #52) land.
+// The flag has four planned values; this build implements "shared" (default),
+// "local", and "hidden". "global-default" is recognized so the flag surface
+// stays stable, but rejected with a not-yet-implemented error until its
+// follow-up issue (#52) lands.
 type visibility string
 
 const (
@@ -37,13 +37,30 @@ const (
 // listing them as unknown.
 func parseVisibility(v string) (visibility, error) {
 	switch visibility(v) {
-	case visibilityShared, visibilityLocal:
+	case visibilityShared, visibilityLocal, visibilityHidden:
 		return visibility(v), nil
-	case visibilityHidden, visibilityGlobalDefault:
-		return "", fmt.Errorf("--visibility=%s is not implemented yet; use shared or local", v)
+	case visibilityGlobalDefault:
+		return "", fmt.Errorf("--visibility=%s is not implemented yet; use shared, local, or hidden", v)
 	default:
-		return "", fmt.Errorf("unknown --visibility %q (known: shared, local)", v)
+		return "", fmt.Errorf("unknown --visibility %q (known: shared, local, hidden)", v)
 	}
+}
+
+// resolveVisibility folds the --private boolean alias into the --visibility
+// value. --private means --visibility=hidden. Passing it alongside an
+// explicitly-set --visibility that isn't "hidden" is a conflict and errors, so
+// the two flags can't silently disagree. visibilitySet distinguishes an
+// explicit --visibility=shared (a real conflict with --private) from the
+// unset default (no conflict — --private simply selects hidden). The default
+// (no --private) just parses --visibility.
+func resolveVisibility(v string, visibilitySet, private bool) (visibility, error) {
+	if !private {
+		return parseVisibility(v)
+	}
+	if visibilitySet && visibility(v) != visibilityHidden {
+		return "", fmt.Errorf("--private conflicts with --visibility=%s; --private is an alias for --visibility=hidden", v)
+	}
+	return visibilityHidden, nil
 }
 
 // docsURL points users at the full documentation. Surfaced in top-level help.
@@ -84,13 +101,15 @@ var commands = []commandHelp{
 			{"--no-git", "skip git init when the target is not already a repo"},
 			{"--dry-run", "print planned writes without changing files"},
 			{"--agents-only", "ship only the agentic envelope (skip fresh-project files); rejected on claude-cowork and project-management"},
-			{"--visibility", "shared (default, committed) or local (ignore the scaffold in the committed .gitignore); code flavors only"},
+			{"--visibility", "shared (default, committed), local (ignore in committed .gitignore), or hidden (ignore in .git/info/exclude, no committed trace); code flavors only"},
+			{"--private", "alias for --visibility=hidden (hide the scaffold in this repo with no committed trace)"},
 		},
 		examples: []string{
-			"agent-init init                          # scaffold fullstack into .",
-			"agent-init init go-cli ./my-tool         # scaffold go-cli into ./my-tool",
-			"agent-init init --agents-only go-cli     # add agents to an existing project",
-			"agent-init init --visibility=local go-cli # ignore the scaffold in .gitignore",
+			"agent-init init                            # scaffold fullstack into .",
+			"agent-init init go-cli ./my-tool           # scaffold go-cli into ./my-tool",
+			"agent-init init --agents-only go-cli       # add agents to an existing project",
+			"agent-init init --visibility=local go-cli  # ignore the scaffold in .gitignore",
+			"agent-init init --private go-cli           # hide the scaffold via .git/info/exclude",
 		},
 	},
 	{
@@ -242,14 +261,21 @@ func (a App) runInit(ctx context.Context, args []string) error {
 	noGit := flags.Bool("no-git", false, "skip git init when target is not already a repo")
 	dryRun := flags.Bool("dry-run", false, "print what would happen without writing files")
 	agentsOnly := flags.Bool("agents-only", false, "ship only the agentic envelope (skip fresh-project files); for adding agents to an existing project")
-	visibilityFlag := flags.String("visibility", string(visibilityShared), "scaffold visibility: shared (committed) or local (ignore in committed .gitignore)")
+	visibilityFlag := flags.String("visibility", string(visibilityShared), "scaffold visibility: shared (committed), local (ignore in committed .gitignore), or hidden (ignore in .git/info/exclude)")
+	private := flags.Bool("private", false, "alias for --visibility=hidden")
 	if err := flags.Parse(args); err != nil {
 		if errors.Is(err, flag.ErrHelp) {
 			return nil
 		}
 		return err
 	}
-	vis, err := parseVisibility(*visibilityFlag)
+	visibilitySet := false
+	flags.Visit(func(f *flag.Flag) {
+		if f.Name == "visibility" {
+			visibilitySet = true
+		}
+	})
+	vis, err := resolveVisibility(*visibilityFlag, visibilitySet, *private)
 	if err != nil {
 		return err
 	}
@@ -300,25 +326,43 @@ func (a App) runInit(ctx context.Context, args []string) error {
 // visibility mode. "shared" (the default) is a no-op: the scaffold is committed
 // normally. "local" appends a fenced, idempotent block to the committed
 // .gitignore so the team sees the scaffold is ignored without carrying the
-// files. The side effect is announced (the absolute path is printed).
+// files. "hidden" appends the same block to the never-committed
+// .git/info/exclude, leaving no committed trace. The side effect is announced
+// (the absolute path is printed).
 func (a App) applyVisibility(vis visibility, target string, dryRun bool) error {
-	if vis != visibilityLocal {
+	pathFn, ensureFn, ok := visibilityWriters(vis)
+	if !ok {
 		return nil
 	}
 	if dryRun {
-		path, err := gitignore.LocalPath(target)
+		path, err := pathFn(target)
 		if err != nil {
 			return err
 		}
 		_, _ = fmt.Fprintf(a.out, "  ignore %s (dry-run):\n%s", path, indentBlock(gitignore.Block()))
 		return nil
 	}
-	path, err := gitignore.EnsureLocal(target)
+	path, err := ensureFn(target)
 	if err != nil {
-		return fmt.Errorf("applying --visibility=local: %w", err)
+		return fmt.Errorf("applying --visibility=%s: %w", vis, err)
 	}
 	_, _ = fmt.Fprintf(a.out, "  ignore %s (agent-init scaffold block)\n", path)
 	return nil
+}
+
+// visibilityWriters maps a tracking-altering visibility mode to the gitignore
+// functions that compute its target path (dry-run) and write its block. The
+// third return is false for modes that don't touch a repo-local ignore file
+// (shared, and global-default until #52 lands), making applyVisibility a no-op.
+func visibilityWriters(vis visibility) (path func(string) (string, error), ensure func(string) (string, error), ok bool) {
+	switch vis {
+	case visibilityLocal:
+		return gitignore.LocalPath, gitignore.EnsureLocal, true
+	case visibilityHidden:
+		return gitignore.HiddenPath, gitignore.EnsureHidden, true
+	default:
+		return nil, nil, false
+	}
 }
 
 // indentBlock prefixes each line of the ignore block for the dry-run preview so
