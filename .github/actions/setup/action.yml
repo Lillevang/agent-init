@@ -15,13 +15,13 @@ runs:
   using: composite
   steps:
     - name: Set up Go
-      uses: actions/setup-go@v5
+      uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5.6.0
       with:
         go-version-file: go.mod
         cache: true
 
     - name: Install just
-      uses: taiki-e/install-action@v2
+      uses: taiki-e/install-action@f48d2f8ba2b452934c948b7be1a768079c3632ff # v2.79.6
       with:
         tool: just
 

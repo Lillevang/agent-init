@@ -1,0 +1,14 @@
+# Keep the SHA-pinned GitHub Actions current. Pinning actions to commit SHAs
+# (see .github/workflows/ and .github/actions/setup/action.yml) makes the
+# supplied code immutable; Dependabot opens update PRs so the pins still track
+# upstream releases instead of going stale.
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    # "/" makes Dependabot scan .github/workflows/ and any composite actions
+    # under .github/actions/.
+    directory: /
+    schedule:
+      interval: weekly
+    commit-message:
+      prefix: ci

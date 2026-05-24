@@ -20,7 +20,7 @@ jobs:
     timeout-minutes: 10
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
 
       - name: Set up check environment
         uses: ./.github/actions/setup
@@ -31,7 +31,7 @@ jobs:
       # `check` hook is excluded — `just check` runs as the next step.
       # PR-only by design: the release path does not run pre-commit.
       - name: Run pre-commit hooks
-        uses: pre-commit/action@v3.0.1
+        uses: pre-commit/action@2c7b3805fd2a0fd8c1884dcaebf91fc102a13ecd # v3.0.1
 
       - name: Run done gate
         run: just check
