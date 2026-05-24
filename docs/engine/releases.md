@@ -32,8 +32,12 @@ Windows `amd64`, packages them as `.tar.gz` (Linux and macOS) and `.zip`
 (Windows) with a `checksums.txt`, and attaches them to a release named
 `agent-init v1.2.3`.
 
-Use a real semver tag. The `version` subcommand embeds the commit and build
-date via `-ldflags`; the tag itself is the human-facing version.
+Use a real semver tag. The build step embeds the pushed tag (`github.ref_name`)
+as `main.version` via `-ldflags`, alongside the commit SHA and build date, so
+the `version` subcommand reports the human-facing release version (e.g.
+`v1.2.3`). On main-push CI builds `github.ref_name` is the branch name (`main`),
+but those builds are never published — the `release` job is gated on the tag
+ref. Builds without ldflags (e.g. `go run`) default `version` to `dev`.
 
 ## Build provenance
 

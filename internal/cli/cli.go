@@ -21,6 +21,7 @@ import (
 const docsURL = "https://github.com/Lillevang/agent-init/tree/main/docs"
 
 type Version struct {
+	Version   string
 	Commit    string
 	BuildDate string
 }
@@ -86,7 +87,7 @@ var commands = []commandHelp{
 	},
 	{
 		name:    "version",
-		summary: "print version info (commit + build date)",
+		summary: "print version info (version + commit + build date)",
 		usage:   "agent-init version",
 	},
 }
@@ -433,7 +434,7 @@ func (a App) runVersion(args []string) error {
 	if len(args) > 0 {
 		return fmt.Errorf("usage: agent-init version\nRun 'agent-init --help' for usage")
 	}
-	_, _ = fmt.Fprintf(a.out, "agent-init commit=%s buildDate=%s\n", a.version.Commit, a.version.BuildDate)
+	_, _ = fmt.Fprintf(a.out, "agent-init version=%s commit=%s buildDate=%s\n", a.version.Version, a.version.Commit, a.version.BuildDate)
 	return nil
 }
 

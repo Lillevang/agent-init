@@ -9,12 +9,14 @@ import (
 )
 
 var (
+	version   = "dev"
 	commit    = "dev"
 	buildDate = "unknown"
 )
 
 func main() {
 	app := cli.New(os.Stdout, os.Stderr, cli.Version{
+		Version:   version,
 		Commit:    commit,
 		BuildDate: buildDate,
 	})
