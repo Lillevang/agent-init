@@ -61,9 +61,13 @@ Multiple trackers can be added to the same workspace. Useful during migrations (
 ### Behavior
 
 - Verifies target has a `.mcp.json` (errors with a usage hint if missing).
-- Overlays the tracker's templates onto the target (writes `integrations/<tracker>/README.md`).
+- Overlays the tracker's templates onto the target (writes `integrations/<tracker>/README.md` and `integrations/<tracker>/.env.example`).
 - Merges an entry into the target's `.mcp.json` under `mcpServers`. **Idempotent**: if the entry already exists, the merge is a no-op with a notice — existing config is *not* overwritten with the new default.
 - Source: [cli.go:runAddTracker](../internal/cli/cli.go) and [trackers/mcp.go:MergeMCPServer](../internal/trackers/mcp.go).
+
+### Credentials
+
+The merged `.mcp.json` entry references every credential from the environment via `${env:VAR}` (e.g. `"GITHUB_PERSONAL_ACCESS_TOKEN": "${env:GITHUB_TOKEN}"`). No empty literal is ever written, so there is no field inviting a pasted secret into the tracked file. Set the vars in your shell or a gitignored `.env`; each tracker ships `integrations/<tracker>/.env.example` listing what it needs. For the GitHub tracker, `export GITHUB_TOKEN="$(gh auth token)"` reuses the devcontainer's existing `gh` login. `add-tracker` prints the variable names and this guidance after merging. Changing `.mcp.json` requires restarting the MCP client (or session) to reconnect. See [`trackerEnvVars`](../internal/cli/cli.go) and [`internal/trackers/registry.go`](../internal/trackers/registry.go).
 
 ### Removing a tracker
 

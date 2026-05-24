@@ -1,7 +1,9 @@
 // Package jira holds the Jira (Atlassian) tracker integration.
 //
 // MCP server: mcp-atlassian (community-maintained). Distributed via PyPI,
-// runnable through uvx. Configure JIRA_URL, JIRA_USERNAME, JIRA_API_TOKEN.
+// runnable through uvx. Credentials (JIRA_USERNAME, JIRA_API_TOKEN) are read
+// from the environment via ${env:...} references so they never land in the
+// tracked .mcp.json; see integrations/jira/.env.example.
 package jira
 
 import "embed"
@@ -23,9 +25,9 @@ func MCPServer() map[string]any {
 		"command": "uvx",
 		"args":    []any{"--from", "mcp-atlassian", "mcp-atlassian"},
 		"env": map[string]any{
-			"JIRA_URL":       "https://yourdomain.atlassian.net",
-			"JIRA_USERNAME":  "",
-			"JIRA_API_TOKEN": "",
+			"JIRA_URL":       "${env:JIRA_URL}",
+			"JIRA_USERNAME":  "${env:JIRA_USERNAME}",
+			"JIRA_API_TOKEN": "${env:JIRA_API_TOKEN}",
 		},
 	}
 }

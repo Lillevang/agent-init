@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/Lillevang/agent-init/internal/trackers"
@@ -126,6 +127,69 @@ func TestDefaultRegistryListsAllShippedTrackers(t *testing.T) {
 			t.Errorf("tracker %q not in DefaultRegistry()", name)
 		}
 	}
+}
+
+// TestNoTrackerShipsEmptySecretLiteral guards issue #17: a tracker's MCP
+// config must never ship an env value that is an empty string, because an
+// empty field in the tracked .mcp.json invites pasting a raw credential
+// inline. Every credential is supplied from the environment via a
+// "${env:VAR}" reference instead.
+func TestNoTrackerShipsEmptySecretLiteral(t *testing.T) {
+	t.Parallel()
+	for _, tr := range trackers.DefaultRegistry().List() {
+		env, ok := tr.MCPServer["env"].(map[string]any)
+		if !ok {
+			continue
+		}
+		for key, raw := range env {
+			val, ok := raw.(string)
+			if !ok {
+				t.Errorf("tracker %q env %q is not a string: %T", tr.Name, key, raw)
+				continue
+			}
+			if val == "" {
+				t.Errorf("tracker %q ships empty env literal for %q; reference the environment with ${env:%s} instead", tr.Name, key, key)
+			}
+		}
+	}
+}
+
+// TestTrackerSecretsUseEnvReference guards issue #17: fields whose name marks
+// them as a secret (token/PAT/password/secret/key) must be supplied via an
+// "${env:...}" reference, never a literal, so the secret never lands in the
+// tracked .mcp.json.
+func TestTrackerSecretsUseEnvReference(t *testing.T) {
+	t.Parallel()
+	secretMarkers := []string{"TOKEN", "PAT", "PASSWORD", "SECRET", "_KEY"}
+	for _, tr := range trackers.DefaultRegistry().List() {
+		env, ok := tr.MCPServer["env"].(map[string]any)
+		if !ok {
+			continue
+		}
+		for key, raw := range env {
+			if !looksSecret(key, secretMarkers) {
+				continue
+			}
+			val, _ := raw.(string)
+			if !isEnvReference(val) {
+				t.Errorf("tracker %q secret env %q must be an ${env:...} reference, got %q", tr.Name, key, val)
+			}
+		}
+	}
+}
+
+func looksSecret(key string, markers []string) bool {
+	upper := strings.ToUpper(key)
+	for _, m := range markers {
+		if strings.Contains(upper, m) {
+			return true
+		}
+	}
+	return false
+}
+
+func isEnvReference(val string) bool {
+	return strings.HasPrefix(val, "${env:") && strings.HasSuffix(val, "}")
 }
 
 func TestRegistryGetReturnsKnownTrackersInError(t *testing.T) {

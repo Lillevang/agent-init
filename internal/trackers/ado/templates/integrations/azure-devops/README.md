@@ -24,9 +24,9 @@ The `agent-init add-tracker ado` command added this entry to `.mcp.json`:
   "command": "npx",
   "args": ["-y", "@azure-devops/mcp"],
   "env": {
-    "ADO_ORG_URL": "https://dev.azure.com/yourorg",
-    "ADO_PROJECT": "",
-    "ADO_PAT": ""
+    "ADO_ORG_URL": "${env:ADO_ORG_URL}",
+    "ADO_PROJECT": "${env:ADO_PROJECT}",
+    "ADO_PAT": "${env:ADO_PAT}"
   }
 }
 ```
@@ -35,9 +35,19 @@ The `agent-init add-tracker ado` command added this entry to `.mcp.json`:
 
 ### Credentials
 
+`.mcp.json` reads these from your environment via `${env:...}` references, so the
+PAT never lands in the tracked file. Set them in your shell or in a gitignored
+`.env` (copy from `.env.example` in this folder); never paste a literal into
+`.mcp.json`. After setting credentials, restart your MCP client (or session) so
+the server reconnects.
+
 1. **ADO_ORG_URL** — your Azure DevOps organization URL: `https://dev.azure.com/yourorg`.
 2. **ADO_PROJECT** — the project name within that org. Often required even when the MCP server "could" infer it.
 3. **ADO_PAT** — a Personal Access Token. Generate at https://dev.azure.com/yourorg/_usersSettings/tokens.
+
+```bash
+cp integrations/azure-devops/.env.example .env   # then fill in, .env is gitignored
+```
 
 #### PAT scopes needed
 

@@ -32,6 +32,9 @@ Next steps:
        agent-init add-tracker jira  %s
        agent-init add-tracker ado   %s
      Each call writes integrations/<tracker>/ and adds an entry to .mcp.json.
+     Credentials are read from the environment via ${env:...} references — set
+     them in your shell or a gitignored .env (see integrations/<tracker>/.env.example),
+     never in the tracked .mcp.json. Restart the MCP client after setting them.
   3. Edit %s/stakeholders.md — list the people who can make decisions on
      this project and what kinds of decisions each can authorize.
   4. Open the folder in Claude Code (or load it into Claude Cowork). The

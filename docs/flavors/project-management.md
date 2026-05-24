@@ -322,7 +322,7 @@ Each tracker integration writes a terminology cheatsheet and an MCP server confi
 
 ## Edge cases and gotchas
 
-- **MCP server credentials.** Default `.mcp.json` entries have empty credential fields. Never commit real credentials. Use `${env:VAR_NAME}` interpolation to pull from your shell environment, or a `.env` file (gitignored by default).
+- **MCP server credentials.** `add-tracker` writes `.mcp.json` entries whose env values are `${env:VAR_NAME}` references, never literals — the secret is read from your shell environment, so it never lands in the tracked file. Set the vars in your shell or a gitignored `.env` (each tracker ships `integrations/<tracker>/.env.example`). For the GitHub tracker, `export GITHUB_TOKEN="$(gh auth token)"` reuses the devcontainer's existing login with no separate PAT. Changing `.mcp.json` needs an MCP/session restart to reconnect. See [credential setup in `docs/cli.md`](../cli.md#add-tracker).
 - **One MCP entry per tracker instance.** If you work with two GitHub repos in the same workspace, you need two entries (e.g., `github-repo1`, `github-repo2`). The `add-tracker` command only writes a single canonical entry per tracker; copy-and-edit by hand for the second.
 - **Removing a tracker.** No `remove-tracker` subcommand yet. Manual cleanup: delete `integrations/<tracker>/`, remove the entry from `.mcp.json`, remove the name from `AGENTS.md`'s "Active trackers" line.
 - **Stakeholder anchors are forever.** Once `decisions.md` links to `stakeholders.md#alice`, don't rename the anchor — it silently breaks the link. If you need to disambiguate two Alices later, add a new entry with a different anchor rather than renaming.

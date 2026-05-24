@@ -198,6 +198,61 @@ func TestAddTrackerWritesFilesAndMergesMCP(t *testing.T) {
 	}
 }
 
+// TestAddTrackerShipsNoSecretLiteralAndGuidesCredentials guards issue #17:
+// the merged .mcp.json must reference credentials from the environment
+// (never an empty literal that invites pasting a secret), and the command
+// output must tell the user where to set the token and to keep it out of the
+// tracked .mcp.json.
+func TestAddTrackerShipsNoSecretLiteralAndGuidesCredentials(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		tracker string
+		folder  string
+		envVar  string
+	}{
+		{"gh", "github", "GITHUB_TOKEN"},
+		{"jira", "jira", "JIRA_API_TOKEN"},
+		{"ado", "azure-devops", "ADO_PAT"},
+	} {
+		tc := tc
+		t.Run(tc.tracker, func(t *testing.T) {
+			t.Parallel()
+			target := filepath.Join(t.TempDir(), "pm")
+			var out bytes.Buffer
+			app := cli.New(&out, &bytes.Buffer{}, cli.Version{})
+			if err := app.Run(context.Background(), []string{"init", "--no-git", "project-management", target}); err != nil {
+				t.Fatalf("init: %v", err)
+			}
+			if err := app.Run(context.Background(), []string{"add-tracker", tc.tracker, target}); err != nil {
+				t.Fatalf("add-tracker %s: %v", tc.tracker, err)
+			}
+
+			mcp, err := os.ReadFile(filepath.Join(target, ".mcp.json"))
+			if err != nil {
+				t.Fatalf("read .mcp.json: %v", err)
+			}
+			if strings.Contains(string(mcp), `: ""`) {
+				t.Errorf("%s .mcp.json ships an empty literal (secret invitation):\n%s", tc.tracker, string(mcp))
+			}
+			if !strings.Contains(string(mcp), "${env:"+tc.envVar+"}") {
+				t.Errorf("%s .mcp.json should reference ${env:%s}:\n%s", tc.tracker, tc.envVar, string(mcp))
+			}
+
+			if _, err := os.Stat(filepath.Join(target, "integrations", tc.folder, ".env.example")); err != nil {
+				t.Errorf("integrations/%s/.env.example should exist: %v", tc.folder, err)
+			}
+
+			got := out.String()
+			if !strings.Contains(got, tc.envVar) {
+				t.Errorf("output should name the env var %s:\n%s", tc.envVar, got)
+			}
+			if !strings.Contains(got, ".mcp.json") {
+				t.Errorf("output should warn about .mcp.json:\n%s", got)
+			}
+		})
+	}
+}
+
 func TestAddTrackerIsIdempotent(t *testing.T) {
 	t.Parallel()
 	target := filepath.Join(t.TempDir(), "pm")

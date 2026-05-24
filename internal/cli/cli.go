@@ -9,6 +9,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 
 	"github.com/Lillevang/agent-init/internal/flavors"
@@ -363,7 +364,50 @@ func (a App) runAddTracker(ctx context.Context, args []string) error {
 	} else {
 		_, _ = fmt.Fprintf(a.out, "\nDone. Review the new files under %s/integrations/.\n", target)
 	}
+	a.printTrackerCredentialHelp(tracker, target, folder)
 	return nil
+}
+
+// printTrackerCredentialHelp tells the user where to put tracker credentials.
+// The .mcp.json entry references secrets via ${env:VAR}, so the token must
+// live in the environment (or a gitignored .env), never in the tracked
+// .mcp.json. Changing .mcp.json needs an MCP/session restart to reconnect.
+func (a App) printTrackerCredentialHelp(t trackers.Tracker, target, folder string) {
+	envVars := trackerEnvVars(t)
+	if len(envVars) == 0 {
+		return
+	}
+	_, _ = fmt.Fprintf(a.out, "\nCredentials: set %s in your environment (do NOT paste secrets into .mcp.json — it is tracked).\n", strings.Join(envVars, ", "))
+	if folder != "" {
+		_, _ = fmt.Fprintf(a.out, "  See %s/integrations/%s/.env.example for the full list and a gitignored .env you can source.\n", target, folder)
+	}
+	if t.Name == "gh" {
+		_, _ = fmt.Fprintf(a.out, "  GitHub tip: reuse the devcontainer's gh login with `export GITHUB_TOKEN=$(gh auth token)` — no separate PAT needed.\n")
+	}
+	_, _ = fmt.Fprintf(a.out, "  Restart your MCP client (or session) after setting credentials so the server reconnects.\n")
+}
+
+// trackerEnvVars returns the environment variable names referenced (via
+// ${env:VAR}) by the tracker's MCP env block, sorted for stable output. This
+// includes non-secret config (e.g. ADO_ORG_URL) as well as secrets; all are
+// supplied from the environment so none ends up as a literal in .mcp.json.
+func trackerEnvVars(t trackers.Tracker) []string {
+	env, ok := t.MCPServer["env"].(map[string]any)
+	if !ok {
+		return nil
+	}
+	var names []string
+	for _, raw := range env {
+		val, ok := raw.(string)
+		if !ok {
+			continue
+		}
+		if name, found := strings.CutPrefix(val, "${env:"); found {
+			names = append(names, strings.TrimSuffix(name, "}"))
+		}
+	}
+	sort.Strings(names)
+	return names
 }
 
 // trackerIntegrationFolder returns the single subdirectory under

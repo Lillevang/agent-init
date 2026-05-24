@@ -39,15 +39,20 @@ This calls the official MCP server at [@modelcontextprotocol/server-github](http
 
 ### Credentials
 
-The default config reads `GITHUB_TOKEN` from your host environment via the `${env:GITHUB_TOKEN}` interpolation. Set it via:
+The default config reads `GITHUB_TOKEN` from your host environment via the `${env:GITHUB_TOKEN}` interpolation, so the token never lands in the tracked `.mcp.json`. The devcontainer's `gh` CLI is already authenticated, so the simplest path reuses its token:
 
 ```bash
-# Option 1: a fine-grained personal access token (preferred for org repos)
-gh auth token
-# Option 2: a classic PAT with `repo` and `read:org` scopes
+gh auth status                          # confirm you're logged in
+export GITHUB_TOKEN="$(gh auth token)"  # reuse the gh login, no separate PAT
 ```
 
-If your token is named differently (e.g. `GH_TOKEN`), edit the env interpolation in `.mcp.json` accordingly.
+If you'd rather manage a token yourself, set `GITHUB_TOKEN` to a classic PAT (`repo`, `read:org` scopes) or fine-grained equivalent. Copy `.env.example` in this folder to a gitignored `.env` to keep it out of version control:
+
+```bash
+cp integrations/github/.env.example .env   # then fill in, .env is gitignored
+```
+
+If your token is named differently (e.g. `GH_TOKEN`), edit the env interpolation in `.mcp.json` accordingly. After setting credentials, restart your MCP client (or session) so the server reconnects.
 
 ### Scopes needed
 
