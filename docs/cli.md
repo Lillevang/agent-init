@@ -31,13 +31,15 @@ agent-init ./my-tool                      # path-only form; implies fullstack
 | `--no-git` | Skip `git init` when the target is not already a repo. |
 | `--dry-run` | Print planned writes without changing files. |
 | `--agents-only` | Skip the flavor's fresh-project files; ship only the agentic envelope (AGENTS.md, scripts, devcontainer, Justfile, pre-commit). For adding agents to an existing project. Supported on every code flavor: `fullstack`, `go-cli`, `go-backend`, `iac`. Rejected on doc-collab flavors (`claude-cowork`, `project-management`) since they don't bootstrap a project layout. |
+| `--visibility` | How the scaffold is tracked by git. Four planned modes; this build ships `shared` and `local`. `shared` (default) commits the scaffold normally. `local` appends a fenced, idempotent block to the committed `.gitignore` so the team sees the scaffold is ignored but does not carry the files. Code flavors only; rejected on doc-collab flavors. `hidden` (per-repo `.git/info/exclude`) and `global-default` (machine-wide excludes) are accepted spellings but error until they land. |
 
 ### Behavior
 
 - The scaffold engine walks the flavor's templates, then the common overlay (if the flavor has one). Existing files are skipped unless `--force` is set.
 - After file writes: creates the flavor's declared symlinks (code flavors get the AGENTS.md/CLAUDE.md trio; doc-collab flavors get none), then runs `git init` unless `--no-git`, then prints the flavor's `NextSteps` message.
 - With `--agents-only`: paths listed in the flavor's `FreshOnlyPaths` are skipped, and any template named `<file>.agents-only.<ext>` (e.g. `Justfile.agents-only.tmpl`) is written as `<file>.<ext>` in place of the base. See [docs/flavors/go-cli.md](./flavors/go-cli.md) for a worked example.
-- Source: [scaffold.go:31](../internal/scaffold/scaffold.go#L31) (`Run`).
+- With `--visibility=local`: after the scaffold is written (symlinks and `git init` included — visibility controls tracking, not creation), a fenced block is appended to the committed `.gitignore`, creating it if absent. The block covers the agentic envelope (`.agent/`, `/AGENTS.md`, `/CLAUDE.md`, `.devcontainer/`, `/Justfile`, `.pre-commit-config.yaml`). It is delimited by `# >>> agent-init (private) >>>` / `# <<< agent-init <<<` markers, so re-running replaces it in place (never duplicates) and it can be removed by hand to undo. `init` prints the absolute path it edited. `--dry-run` previews the path and block, writing nothing. Block management lives in [internal/gitignore](../internal/gitignore/gitignore.go).
+- Source: [scaffold.go:31](../internal/scaffold/scaffold.go#L31) (`Run`), [cli.go:applyVisibility](../internal/cli/cli.go).
 
 ## `add-tracker`
 

@@ -36,6 +36,7 @@ func DefaultRegistry() Registry {
 			// (every recipe no-ops gracefully when package.json / tsconfig
 			// are absent), so no variant is needed.
 			SupportsAgentsOnly: true,
+			SupportsVisibility: true,
 			FreshOnlyPaths: []string{
 				"apis/README.md",
 				"clients/README.md",
@@ -55,6 +56,7 @@ func DefaultRegistry() Registry {
 			// go.mod, version package) and use Justfile.agents-only.tmpl
 			// which omits the layout-specific build/cross-build recipes.
 			SupportsAgentsOnly: true,
+			SupportsVisibility: true,
 			FreshOnlyPaths: []string{
 				"cmd/{{.ProjectName}}/main.go",
 				"go.mod",
@@ -77,6 +79,7 @@ func DefaultRegistry() Registry {
 			// which omits run-dev/build/cross-build because they hardcode
 			// ./cmd/server.
 			SupportsAgentsOnly: true,
+			SupportsVisibility: true,
 			FreshOnlyPaths: []string{
 				"cmd/server/main.go",
 				"go.mod",
@@ -101,6 +104,7 @@ func DefaultRegistry() Registry {
 			// The shipped Justfile is already auto-detecting, so no variant
 			// is needed.
 			SupportsAgentsOnly: true,
+			SupportsVisibility: true,
 			FreshOnlyPaths: []string{
 				"terraform/main.tf",
 				"terraform/outputs.tf",

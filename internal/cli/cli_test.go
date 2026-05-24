@@ -146,6 +146,130 @@ func TestInitAgentsOnlyRejectsUnsupportedFlavor(t *testing.T) {
 	}
 }
 
+func TestInitVisibilityLocalAppendsGitignoreBlock(t *testing.T) {
+	t.Parallel()
+	target := filepath.Join(t.TempDir(), "proj")
+	var out bytes.Buffer
+	app := cli.New(&out, &bytes.Buffer{}, cli.Version{})
+
+	err := app.Run(context.Background(), []string{"init", "--no-git", "--visibility=local", "go-cli", target})
+	if err != nil {
+		t.Fatalf("Run(init --visibility=local go-cli) error = %v", err)
+	}
+
+	gitignore := filepath.Join(target, ".gitignore")
+	content, err := os.ReadFile(gitignore)
+	if err != nil {
+		t.Fatalf("read .gitignore: %v", err)
+	}
+	for _, want := range []string{"agent-init", ".agent/", "/AGENTS.md", ".devcontainer/", "/Justfile"} {
+		if !strings.Contains(string(content), want) {
+			t.Errorf(".gitignore missing %q:\n%s", want, content)
+		}
+	}
+	// The side effect must be announced with the absolute path.
+	if !strings.Contains(out.String(), gitignore) {
+		t.Errorf("init output did not announce the .gitignore path %q:\n%s", gitignore, out.String())
+	}
+}
+
+func TestInitVisibilityLocalIsIdempotent(t *testing.T) {
+	t.Parallel()
+	target := filepath.Join(t.TempDir(), "proj")
+	run := func() {
+		app := cli.New(&bytes.Buffer{}, &bytes.Buffer{}, cli.Version{})
+		if err := app.Run(context.Background(), []string{"init", "--no-git", "--force", "--visibility=local", "go-cli", target}); err != nil {
+			t.Fatalf("Run error = %v", err)
+		}
+	}
+	run()
+	run()
+
+	content, err := os.ReadFile(filepath.Join(target, ".gitignore"))
+	if err != nil {
+		t.Fatalf("read .gitignore: %v", err)
+	}
+	if n := strings.Count(string(content), "agent-init (private)"); n != 1 {
+		t.Errorf("got %d ignore blocks after re-run, want 1:\n%s", n, content)
+	}
+}
+
+func TestInitVisibilitySharedLeavesNoGitignore(t *testing.T) {
+	t.Parallel()
+	target := filepath.Join(t.TempDir(), "proj")
+	app := cli.New(&bytes.Buffer{}, &bytes.Buffer{}, cli.Version{})
+
+	// Default (no flag) and explicit --visibility=shared must both behave like
+	// today: no agent-init block written.
+	if err := app.Run(context.Background(), []string{"init", "--no-git", "--visibility=shared", "go-cli", target}); err != nil {
+		t.Fatalf("Run(init --visibility=shared) error = %v", err)
+	}
+	if content, err := os.ReadFile(filepath.Join(target, ".gitignore")); err == nil {
+		if strings.Contains(string(content), "agent-init (private)") {
+			t.Errorf("shared visibility wrote the ignore block:\n%s", content)
+		}
+	}
+}
+
+func TestInitVisibilityLocalRejectedOnDocCollabFlavor(t *testing.T) {
+	t.Parallel()
+	app := cli.New(&bytes.Buffer{}, &bytes.Buffer{}, cli.Version{})
+
+	err := app.Run(context.Background(), []string{"init", "--no-git", "--visibility=local", "project-management", t.TempDir()})
+	if err == nil {
+		t.Fatal("Run(init --visibility=local project-management) error = nil; want rejection")
+	}
+	if !strings.Contains(err.Error(), "visibility") {
+		t.Fatalf("error = %v; want to mention --visibility", err)
+	}
+}
+
+func TestInitVisibilityUnimplementedModesRejected(t *testing.T) {
+	t.Parallel()
+	for _, mode := range []string{"hidden", "global-default"} {
+		t.Run(mode, func(t *testing.T) {
+			t.Parallel()
+			app := cli.New(&bytes.Buffer{}, &bytes.Buffer{}, cli.Version{})
+			err := app.Run(context.Background(), []string{"init", "--no-git", "--visibility=" + mode, "go-cli", t.TempDir()})
+			if err == nil {
+				t.Fatalf("Run(--visibility=%s) error = nil; want not-implemented rejection", mode)
+			}
+			if !strings.Contains(err.Error(), "not implemented") {
+				t.Fatalf("error = %v; want not-implemented message", err)
+			}
+		})
+	}
+}
+
+func TestInitVisibilityUnknownValueRejected(t *testing.T) {
+	t.Parallel()
+	app := cli.New(&bytes.Buffer{}, &bytes.Buffer{}, cli.Version{})
+	err := app.Run(context.Background(), []string{"init", "--no-git", "--visibility=bogus", "go-cli", t.TempDir()})
+	if err == nil {
+		t.Fatal("Run(--visibility=bogus) error = nil; want rejection")
+	}
+	if !strings.Contains(err.Error(), "unknown --visibility") {
+		t.Fatalf("error = %v; want unknown-visibility message", err)
+	}
+}
+
+func TestInitVisibilityLocalDryRunWritesNothing(t *testing.T) {
+	t.Parallel()
+	target := filepath.Join(t.TempDir(), "proj")
+	var out bytes.Buffer
+	app := cli.New(&out, &bytes.Buffer{}, cli.Version{})
+
+	if err := app.Run(context.Background(), []string{"init", "--no-git", "--dry-run", "--visibility=local", "go-cli", target}); err != nil {
+		t.Fatalf("Run(--dry-run --visibility=local) error = %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(target, ".gitignore")); !os.IsNotExist(err) {
+		t.Errorf("dry-run wrote a .gitignore, stat err = %v", err)
+	}
+	if !strings.Contains(out.String(), ".agent/") {
+		t.Errorf("dry-run did not preview the ignore block:\n%s", out.String())
+	}
+}
+
 func TestRejectsUnknownCommandTypo(t *testing.T) {
 	t.Parallel()
 	app := cli.New(&bytes.Buffer{}, &bytes.Buffer{}, cli.Version{})
