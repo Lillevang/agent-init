@@ -1,15 +1,25 @@
 name: Release
 
+# Releases are tag-driven (see docs/engine/releases.md). Pushing a semver tag
+# (v*) cuts a public GitHub Release; pushes/merges to main run the check + build
+# jobs as CI only and never publish. The release job is gated on the tag ref and
+# is the sole holder of `contents: write`.
 on:
   push:
     branches:
       - main
+    tags:
+      - "v*"
 
+# Default to read-only. The release job opts up to `contents: write` itself, so
+# the check and build jobs that also run on main pushes stay least-privilege.
 permissions:
-  contents: write
+  contents: read
 
+# Serialize per ref so a main push and a tag push don't cancel or queue behind
+# each other. Don't cancel in-progress release runs.
 concurrency:
-  group: release-main
+  group: release-${{ github.ref }}
   cancel-in-progress: false
 
 jobs:
@@ -88,8 +98,14 @@ jobs:
   release:
     name: Create Release
     needs: build
+    # Only publish for semver tag pushes (vX.Y.Z). On main pushes the workflow
+    # stops after check + build, so no release is cut.
+    if: startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    # Scoped here, not at workflow level: only the publish step needs write.
+    permissions:
+      contents: write
     steps:
       - name: Download artifacts
         uses: actions/download-artifact@v4
@@ -108,11 +124,10 @@ jobs:
       - name: Create GitHub release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: build-${{ github.run_number }}
-          name: agent-init build ${{ github.run_number }}
-          target_commitish: ${{ github.sha }}
+          tag_name: ${{ github.ref_name }}
+          name: agent-init ${{ github.ref_name }}
           body: |
-            Automated build from `${{ github.sha }}`.
+            Release `${{ github.ref_name }}` built from `${{ github.sha }}`.
 
             Published binaries:
             - Linux amd64 / arm64 (`.tar.gz`)

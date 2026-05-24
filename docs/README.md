@@ -26,7 +26,8 @@ docs/
 │   ├── templates.md            # .tmpl content substitution
 │   ├── path-templating.md
 │   ├── common-overlay.md
-│   └── done-gate.md
+│   ├── done-gate.md
+│   └── releases.md            # tag-driven release flow (DONE)
 └── flavors/
     ├── claude-cowork.md        # (DONE)
     ├── project-management.md   # (DONE — with worked examples)
