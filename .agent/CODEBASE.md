@@ -174,7 +174,7 @@ testdata/golden/go-cli/internal/version/version_test.go:5:func TestString(t *tes
 ## Stats
 
 ```
-Total tracked files: 340
+Total tracked files: 342
 ```
 
 <!-- HAND-WRITTEN BELOW — EDIT FREELY -->
