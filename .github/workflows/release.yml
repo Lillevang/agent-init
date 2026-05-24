@@ -60,6 +60,9 @@ jobs:
           - goos: linux
             goarch: arm64
             ext: ""
+          - goos: darwin
+            goarch: arm64
+            ext: ""
           - goos: windows
             goarch: amd64
             ext: ".exe"
@@ -132,6 +135,7 @@ jobs:
 
             Published binaries:
             - Linux amd64 / arm64 (`.tar.gz`)
+            - macOS arm64 (`.tar.gz`)
             - Windows amd64 (`.zip`)
           files: |
             dist/*.tar.gz
