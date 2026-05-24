@@ -2,7 +2,10 @@
 //
 // MCP server: @azure-devops/mcp (Microsoft official; verify the package
 // name and shape — the Azure DevOps MCP ecosystem is the least mature of
-// the three trackers and naming has shifted).
+// the three trackers and naming has shifted). Configuration and the ADO_PAT
+// credential are read from the environment via ${env:...} references so the
+// PAT never lands in the tracked .mcp.json; see
+// integrations/azure-devops/.env.example.
 package ado
 
 import "embed"
@@ -24,9 +27,9 @@ func MCPServer() map[string]any {
 		"command": "npx",
 		"args":    []any{"-y", "@azure-devops/mcp"},
 		"env": map[string]any{
-			"ADO_ORG_URL": "https://dev.azure.com/yourorg",
-			"ADO_PROJECT": "",
-			"ADO_PAT":     "",
+			"ADO_ORG_URL": "${env:ADO_ORG_URL}",
+			"ADO_PROJECT": "${env:ADO_PROJECT}",
+			"ADO_PAT":     "${env:ADO_PAT}",
 		},
 	}
 }

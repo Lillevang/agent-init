@@ -24,9 +24,9 @@ The `agent-init add-tracker jira` command added this entry to `.mcp.json`:
   "command": "uvx",
   "args": ["--from", "mcp-atlassian", "mcp-atlassian"],
   "env": {
-    "JIRA_URL": "https://yourdomain.atlassian.net",
-    "JIRA_USERNAME": "",
-    "JIRA_API_TOKEN": ""
+    "JIRA_URL": "${env:JIRA_URL}",
+    "JIRA_USERNAME": "${env:JIRA_USERNAME}",
+    "JIRA_API_TOKEN": "${env:JIRA_API_TOKEN}"
   }
 }
 ```
@@ -35,11 +35,20 @@ This calls the [mcp-atlassian community server](https://github.com/sooperset/mcp
 
 ### Credentials
 
+`.mcp.json` reads these from your environment via `${env:...}` references, so the
+token never lands in the tracked file. Set them in your shell or in a gitignored
+`.env` (copy from `.env.example` in this folder); never paste a literal into
+`.mcp.json`.
+
 1. **JIRA_URL** — your Atlassian Cloud or Data Center URL. For Cloud: `https://yourdomain.atlassian.net`. For Data Center: the base URL of your installation.
 2. **JIRA_USERNAME** — your Atlassian account email.
 3. **JIRA_API_TOKEN** — generate at [id.atlassian.com → Security → API tokens](https://id.atlassian.com/manage-profile/security/api-tokens).
 
-Edit `.mcp.json` with real values, or move them to a `.env` file and reference via `${env:JIRA_API_TOKEN}` interpolation. `.env` is in `.gitignore` by default; never commit credentials.
+```bash
+cp integrations/jira/.env.example .env   # then fill in, .env is gitignored
+```
+
+After setting credentials, restart your MCP client (or session) so the server reconnects.
 
 ### Server-specific gotchas
 
