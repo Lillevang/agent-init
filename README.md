@@ -194,4 +194,11 @@ The devcontainer installs Go, `goimports`, `golangci-lint`, `just`, pre-commit, 
 
 Pull requests to `main` run `just check`, which covers codemap regeneration, formatting, linting, `go vet`, tests, cross-builds, and the full multi-flavor smoke test.
 
-Pushes to `main` run the same gate, then build binaries for Linux `amd64`, Linux `arm64`, macOS `arm64`, and Windows `amd64` — published as `.tar.gz` (Linux and macOS) and `.zip` (Windows) with a `checksums.txt`, attached to a GitHub release tagged `build-<run-number>`.
+Pushes to `main` run the same gate and build the binaries, but do not publish a release.
+
+Releases are tag-driven. Pushing a semver tag (`vX.Y.Z`) runs the gate, builds binaries for Linux `amd64`, Linux `arm64`, macOS `arm64`, and Windows `amd64`, and publishes a GitHub release named and tagged after the pushed tag. Artifacts are `.tar.gz` (Linux and macOS) and `.zip` (Windows) with a `checksums.txt`. To cut a release:
+
+```bash
+git tag v1.2.3
+git push origin v1.2.3
+```

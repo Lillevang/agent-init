@@ -67,6 +67,10 @@ The binary's interface is the product. Keep it small and stable.
 - `agent-init list-trackers` — print available trackers with descriptions.
 - `agent-init version` — print version info (commit + build date, embedded via `-ldflags`).
 
+### Releases
+
+Releases are tag-driven. Pushing a semver tag (`vX.Y.Z`) is the only trigger that publishes a public GitHub Release; pushes and merges to `main` run CI (check + build) and never publish. The release tag, name, and body derive from the pushed tag (`github.ref_name`), not `github.run_number`. The release job is the only job granted `contents: write`; the workflow defaults to `contents: read`. See [`.github/workflows/release.yml`](../.github/workflows/release.yml) and [`docs/engine/releases.md`](../docs/engine/releases.md). The version-bump / who-tags convention is a separate open follow-up.
+
 ### Flags on `init`
 
 | Flag | Purpose |
