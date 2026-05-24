@@ -131,6 +131,15 @@ func EnsureHidden(target string) (string, error) {
 	return path, nil
 }
 
+// Upsert returns content with the managed block present exactly once, replacing
+// an existing block in place or appending it. It is exported so other targets of
+// the same block (e.g. the machine-wide excludes file managed by
+// internal/gitconfig for the "global-default" mode) reuse the identical block
+// content and idempotency rules rather than re-implementing them.
+func Upsert(content string) string {
+	return upsertBlock(content)
+}
+
 // upsertBlock returns content with the managed block present exactly once. An
 // existing block (matched by markers) is replaced in place; otherwise the block
 // is appended, separated from prior content by a blank line.
