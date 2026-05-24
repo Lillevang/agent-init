@@ -1,0 +1,39 @@
+name: Set up check environment
+description: >-
+  Install the toolchain the done gate needs: Go (with module cache), just,
+  system tools (tree, shellcheck), and the Go-based lint/vuln tools
+  (golangci-lint, goimports, govulncheck). Shared by the check jobs in pr.yml
+  and release.yml so the gate's setup lives in exactly one place.
+
+# Tool versions are defined once, here. Bump them in this file only.
+#
+# Checkout is NOT part of this action: a local composite action can only be
+# resolved after the repository is checked out, so the calling workflow must
+# run actions/checkout before `uses: ./.github/actions/setup`.
+
+runs:
+  using: composite
+  steps:
+    - name: Set up Go
+      uses: actions/setup-go@v5
+      with:
+        go-version-file: go.mod
+        cache: true
+
+    - name: Install just
+      uses: taiki-e/install-action@v2
+      with:
+        tool: just
+
+    - name: Install system tools
+      shell: bash
+      run: sudo apt-get update && sudo apt-get install -y tree shellcheck
+
+    - name: Install Go tools
+      shell: bash
+      run: |
+        set -euo pipefail
+        curl -fsSL https://golangci-lint.run/install.sh \
+          | sh -s -- -b "$(go env GOPATH)/bin" v2.12.2
+        go install golang.org/x/tools/cmd/goimports@v0.30.0
+        go install golang.org/x/vuln/cmd/govulncheck@v1.1.4
