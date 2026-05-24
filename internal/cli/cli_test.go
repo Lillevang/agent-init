@@ -470,12 +470,27 @@ func TestHelpFlagsMatchDocs(t *testing.T) {
 func TestVersion(t *testing.T) {
 	t.Parallel()
 	var out bytes.Buffer
-	app := cli.New(&out, &bytes.Buffer{}, cli.Version{Commit: "abc123", BuildDate: "2026-05-12"})
+	app := cli.New(&out, &bytes.Buffer{}, cli.Version{Version: "v1.2.3", Commit: "abc123", BuildDate: "2026-05-12"})
 
 	if err := app.Run(context.Background(), []string{"version"}); err != nil {
 		t.Fatalf("Run(version) error = %v", err)
 	}
-	if got := out.String(); got != "agent-init commit=abc123 buildDate=2026-05-12\n" {
+	if got := out.String(); got != "agent-init version=v1.2.3 commit=abc123 buildDate=2026-05-12\n" {
+		t.Fatalf("version output = %q", got)
+	}
+}
+
+func TestVersionDefaultsToDev(t *testing.T) {
+	t.Parallel()
+	var out bytes.Buffer
+	// Mirrors a dev build (`go run`), where ldflags are not applied and the
+	// version var keeps its "dev" default.
+	app := cli.New(&out, &bytes.Buffer{}, cli.Version{Version: "dev", Commit: "dev", BuildDate: "unknown"})
+
+	if err := app.Run(context.Background(), []string{"version"}); err != nil {
+		t.Fatalf("Run(version) error = %v", err)
+	}
+	if got := out.String(); got != "agent-init version=dev commit=dev buildDate=unknown\n" {
 		t.Fatalf("version output = %q", got)
 	}
 }

@@ -61,11 +61,13 @@ For a local install:
 go install ./cmd/agent-init
 ```
 
-Release builds set version metadata via `-ldflags`:
+Release builds set version metadata via `-ldflags`. On tag-driven release builds
+`main.version` is the pushed semver tag, so `agent-init version` reports the
+release version. Local builds can set it too:
 
 ```bash
 go build \
-  -ldflags "-X main.commit=$(git rev-parse --short HEAD) -X main.buildDate=$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+  -ldflags "-X main.version=$(git describe --tags --always) -X main.commit=$(git rev-parse --short HEAD) -X main.buildDate=$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
   -o agent-init ./cmd/agent-init
 ```
 

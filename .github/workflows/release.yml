@@ -79,7 +79,7 @@ jobs:
           base="agent-init-${GOOS}-${GOARCH}"
           bin="${base}${{ matrix.ext }}"
           go build \
-            -ldflags "-s -w -X main.commit=${GITHUB_SHA} -X main.buildDate=$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+            -ldflags "-s -w -X main.version=${{ github.ref_name }} -X main.commit=${GITHUB_SHA} -X main.buildDate=$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
             -o "dist/${bin}" ./cmd/agent-init
           if [[ "${GOOS}" == "windows" ]]; then
               (cd dist && zip "${base}.zip" "${bin}")

@@ -107,14 +107,18 @@ Same format as `list-flavors`.
 
 ## `version`
 
-Prints the embedded commit + build date set via `-ldflags` at build time.
+Prints the embedded version, commit, and build date set via `-ldflags` at build
+time. On release binaries `version` is the pushed semver tag (`github.ref_name`,
+e.g. `v1.2.3`); see [`docs/engine/releases.md`](engine/releases.md).
 
 ```
 $ agent-init version
-agent-init commit=abc123 buildDate=2026-05-14T10:00:00Z
+agent-init version=v1.2.3 commit=abc123 buildDate=2026-05-14T10:00:00Z
 ```
 
-In dev builds (`go run ./cmd/agent-init version`), prints `commit=dev buildDate=unknown` — the ldflags only apply to release builds.
+In dev builds (`go run ./cmd/agent-init version`), prints
+`version=dev commit=dev buildDate=unknown` — the ldflags only apply to release
+builds.
 
 ## Help
 
