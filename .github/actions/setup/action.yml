@@ -29,11 +29,44 @@ runs:
       shell: bash
       run: sudo apt-get update && sudo apt-get install -y tree shellcheck
 
-    - name: Install Go tools
+    # golangci-lint is cached as a single binary keyed on the pinned version.
+    # On a cache hit the install script does not run, so the per-run download
+    # and `curl | sh` trust decision are skipped; on a miss (or after a version
+    # bump) the same official installer pins the same version. This caches the
+    # binary, not its analysis cache, so it removes the install round-trip, not
+    # lint runtime. Either way the binary lands in $(go env GOPATH)/bin (on
+    # PATH), where `just check` finds it — the linter is still invoked only
+    # once, by `just check`.
+    #
+    # The version is pinned in exactly one place (this step). It is exported to
+    # $GITHUB_ENV so the cache key, cache path, and installer all read the same
+    # value; the path is derived from `go env GOPATH` rather than hardcoded so
+    # the cache target and install target cannot drift. Bump the version here.
+    - name: Pin golangci-lint version
+      shell: bash
+      run: |
+        set -euo pipefail
+        echo "GOLANGCI_LINT_VERSION=v2.12.2" >> "$GITHUB_ENV"
+        echo "GOLANGCI_LINT_BIN=$(go env GOPATH)/bin/golangci-lint" >> "$GITHUB_ENV"
+
+    - name: Cache golangci-lint
+      id: cache-golangci-lint
+      uses: actions/cache@v4
+      with:
+        path: ${{ env.GOLANGCI_LINT_BIN }}
+        key: ${{ runner.os }}-${{ runner.arch }}-golangci-lint-${{ env.GOLANGCI_LINT_VERSION }}
+
+    - name: Install golangci-lint
+      if: steps.cache-golangci-lint.outputs.cache-hit != 'true'
       shell: bash
       run: |
         set -euo pipefail
         curl -fsSL https://golangci-lint.run/install.sh \
-          | sh -s -- -b "$(go env GOPATH)/bin" v2.12.2
+          | sh -s -- -b "$(go env GOPATH)/bin" "$GOLANGCI_LINT_VERSION"
+
+    - name: Install Go tools
+      shell: bash
+      run: |
+        set -euo pipefail
         go install golang.org/x/tools/cmd/goimports@v0.30.0
         go install golang.org/x/vuln/cmd/govulncheck@v1.1.4
