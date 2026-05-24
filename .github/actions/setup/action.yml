@@ -51,7 +51,7 @@ runs:
 
     - name: Cache golangci-lint
       id: cache-golangci-lint
-      uses: actions/cache@v4
+      uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
       with:
         path: ${{ env.GOLANGCI_LINT_BIN }}
         key: ${{ runner.os }}-${{ runner.arch }}-golangci-lint-${{ env.GOLANGCI_LINT_VERSION }}
