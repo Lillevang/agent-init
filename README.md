@@ -202,3 +202,9 @@ Releases are tag-driven. Pushing a semver tag (`vX.Y.Z`) runs the gate, builds b
 git tag v1.2.3
 git push origin v1.2.3
 ```
+
+Each published archive carries a signed build provenance attestation. Verify a download before running it:
+
+```bash
+gh attestation verify agent-init-linux-amd64.tar.gz --repo Lillevang/agent-init
+```
