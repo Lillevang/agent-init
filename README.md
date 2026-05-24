@@ -119,7 +119,8 @@ Flags for `init`:
 - `--no-git` — skip `git init` when the target is not already a repository.
 - `--dry-run` — print planned writes without changing files.
 - `--agents-only` — skip the flavor's fresh-project files; ship only the agentic envelope (AGENTS.md, scripts, devcontainer, Justfile, pre-commit). For adding `agent-init` to an existing project. Supported on every code flavor: `fullstack`, `go-cli`, `go-backend`, `iac`. See [`docs/flavors/go-cli.md`](./docs/flavors/go-cli.md) for a worked example.
-- `--visibility` — how the scaffold is tracked by git. `shared` (default) commits it. `local` appends a fenced, idempotent block to the committed `.gitignore` so the scaffold is ignored while the ignore rule stays visible to the team. Code flavors only. See [`docs/cli.md`](./docs/cli.md).
+- `--visibility` — how the scaffold is tracked by git. `shared` (default) commits it. `local` appends a fenced, idempotent block to the committed `.gitignore` so the scaffold is ignored while the ignore rule stays visible to the team. `hidden` writes the same block to the never-committed `.git/info/exclude`, leaving no trace for other contributors. Code flavors only. See [`docs/cli.md`](./docs/cli.md).
+- `--private` — alias for `--visibility=hidden`.
 
 The `add-tracker` subcommand extends a `project-management` scaffold with a Jira / Azure DevOps / GitHub integration. Each call writes an `integrations/<tracker>/` cheatsheet and merges an entry into the target's `.mcp.json`. Idempotent and additive — multiple trackers can coexist (useful during migrations). See [`docs/cli.md`](./docs/cli.md) and [`docs/flavors/project-management.md`](./docs/flavors/project-management.md) for details.
 
