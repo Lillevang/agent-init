@@ -50,29 +50,36 @@ fi
 # Detect a few common API-surface signals; this is intentionally rough
 api_surface() {
     local found=0
+    # `sort` before `head` keeps the output stable: ripgrep's parallel
+    # directory traversal is not order-stable, so without this the same set of
+    # symbols can reshuffle between runs and produce a noisy CODEBASE.md diff.
+    # The key spec `-t: -k1,1 -k2,2n` groups entries by file path, then orders
+    # by line number numerically — matching the shipped common template's
+    # gen-codemap.sh. LC_ALL=C (set near the top) makes the path sort
+    # byte-ordered and reproducible across dev containers and CI.
     if compgen -G "**/*.rs" > /dev/null 2>&1; then
         echo "### Rust"
         rg --no-heading -n '^pub (fn|struct|enum|trait|mod) ' --type rust 2>/dev/null \
-            | head -100 || true
+            | sort -t: -k1,1 -k2,2n | head -100 || true
         found=1
     fi
     if compgen -G "**/*.go" > /dev/null 2>&1; then
         echo "### Go"
         rg --no-heading -n '^func [A-Z]|^type [A-Z]' --type go 2>/dev/null \
-            | head -100 || true
+            | sort -t: -k1,1 -k2,2n | head -100 || true
         found=1
     fi
     if compgen -G "**/*.ts" > /dev/null 2>&1 || compgen -G "**/*.tsx" > /dev/null 2>&1; then
         echo "### TypeScript"
         rg --no-heading -n '^export (function|class|interface|type|const|enum) ' --type ts 2>/dev/null \
-            | head -100 || true
+            | sort -t: -k1,1 -k2,2n | head -100 || true
         found=1
     fi
     if compgen -G "**/*.py" > /dev/null 2>&1; then
         echo "### Python"
         rg --no-heading -n '^(class |def )[A-Za-z_]' --type py 2>/dev/null \
             | grep -v '^.*:def _' \
-            | head -100 || true
+            | sort -t: -k1,1 -k2,2n | head -100 || true
         found=1
     fi
     if [[ $found -eq 0 ]]; then
