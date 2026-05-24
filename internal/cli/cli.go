@@ -13,9 +13,38 @@ import (
 	"strings"
 
 	"github.com/Lillevang/agent-init/internal/flavors"
+	"github.com/Lillevang/agent-init/internal/gitignore"
 	"github.com/Lillevang/agent-init/internal/scaffold"
 	"github.com/Lillevang/agent-init/internal/trackers"
 )
+
+// visibility selects how the scaffold's agentic envelope is tracked by git.
+// The flag has four planned values; this build implements "shared" (default)
+// and "local". "hidden" and "global-default" are recognized so the flag
+// surface stays stable, but rejected with a not-yet-implemented error until
+// their follow-up issues (#53, #52) land.
+type visibility string
+
+const (
+	visibilityShared        visibility = "shared"
+	visibilityLocal         visibility = "local"
+	visibilityHidden        visibility = "hidden"
+	visibilityGlobalDefault visibility = "global-default"
+)
+
+// parseVisibility validates the --visibility value. Unimplemented-but-planned
+// modes return a distinct error so the message guides the user rather than
+// listing them as unknown.
+func parseVisibility(v string) (visibility, error) {
+	switch visibility(v) {
+	case visibilityShared, visibilityLocal:
+		return visibility(v), nil
+	case visibilityHidden, visibilityGlobalDefault:
+		return "", fmt.Errorf("--visibility=%s is not implemented yet; use shared or local", v)
+	default:
+		return "", fmt.Errorf("unknown --visibility %q (known: shared, local)", v)
+	}
+}
 
 // docsURL points users at the full documentation. Surfaced in top-level help.
 const docsURL = "https://github.com/Lillevang/agent-init/tree/main/docs"
@@ -55,11 +84,13 @@ var commands = []commandHelp{
 			{"--no-git", "skip git init when the target is not already a repo"},
 			{"--dry-run", "print planned writes without changing files"},
 			{"--agents-only", "ship only the agentic envelope (skip fresh-project files); rejected on claude-cowork and project-management"},
+			{"--visibility", "shared (default, committed) or local (ignore the scaffold in the committed .gitignore); code flavors only"},
 		},
 		examples: []string{
-			"agent-init init                      # scaffold fullstack into .",
-			"agent-init init go-cli ./my-tool     # scaffold go-cli into ./my-tool",
-			"agent-init init --agents-only go-cli # add agents to an existing project",
+			"agent-init init                          # scaffold fullstack into .",
+			"agent-init init go-cli ./my-tool         # scaffold go-cli into ./my-tool",
+			"agent-init init --agents-only go-cli     # add agents to an existing project",
+			"agent-init init --visibility=local go-cli # ignore the scaffold in .gitignore",
 		},
 	},
 	{
@@ -211,10 +242,15 @@ func (a App) runInit(ctx context.Context, args []string) error {
 	noGit := flags.Bool("no-git", false, "skip git init when target is not already a repo")
 	dryRun := flags.Bool("dry-run", false, "print what would happen without writing files")
 	agentsOnly := flags.Bool("agents-only", false, "ship only the agentic envelope (skip fresh-project files); for adding agents to an existing project")
+	visibilityFlag := flags.String("visibility", string(visibilityShared), "scaffold visibility: shared (committed) or local (ignore in committed .gitignore)")
 	if err := flags.Parse(args); err != nil {
 		if errors.Is(err, flag.ErrHelp) {
 			return nil
 		}
+		return err
+	}
+	vis, err := parseVisibility(*visibilityFlag)
+	if err != nil {
 		return err
 	}
 	flavorName := "fullstack"
@@ -243,7 +279,10 @@ func (a App) runInit(ctx context.Context, args []string) error {
 	if *agentsOnly && !flavor.SupportsAgentsOnly {
 		return fmt.Errorf("flavor %q does not support --agents-only", flavor.Name)
 	}
-	return scaffold.Run(ctx, scaffold.Options{
+	if vis != visibilityShared && !flavor.SupportsVisibility {
+		return fmt.Errorf("flavor %q does not support --visibility (code flavors only)", flavor.Name)
+	}
+	if err := scaffold.Run(ctx, scaffold.Options{
 		Flavor:     flavor,
 		Target:     target,
 		Force:      *force,
@@ -251,7 +290,45 @@ func (a App) runInit(ctx context.Context, args []string) error {
 		DryRun:     *dryRun,
 		AgentsOnly: *agentsOnly,
 		Out:        a.out,
-	})
+	}); err != nil {
+		return err
+	}
+	return a.applyVisibility(vis, target, *dryRun)
+}
+
+// applyVisibility writes the scaffold's ignore envelope according to the chosen
+// visibility mode. "shared" (the default) is a no-op: the scaffold is committed
+// normally. "local" appends a fenced, idempotent block to the committed
+// .gitignore so the team sees the scaffold is ignored without carrying the
+// files. The side effect is announced (the absolute path is printed).
+func (a App) applyVisibility(vis visibility, target string, dryRun bool) error {
+	if vis != visibilityLocal {
+		return nil
+	}
+	if dryRun {
+		path, err := gitignore.LocalPath(target)
+		if err != nil {
+			return err
+		}
+		_, _ = fmt.Fprintf(a.out, "  ignore %s (dry-run):\n%s", path, indentBlock(gitignore.Block()))
+		return nil
+	}
+	path, err := gitignore.EnsureLocal(target)
+	if err != nil {
+		return fmt.Errorf("applying --visibility=local: %w", err)
+	}
+	_, _ = fmt.Fprintf(a.out, "  ignore %s (agent-init scaffold block)\n", path)
+	return nil
+}
+
+// indentBlock prefixes each line of the ignore block for the dry-run preview so
+// it reads as nested detail under the "ignore" line.
+func indentBlock(block string) string {
+	lines := strings.Split(strings.TrimRight(block, "\n"), "\n")
+	for i, l := range lines {
+		lines[i] = "         " + l
+	}
+	return strings.Join(lines, "\n") + "\n"
 }
 
 func (a App) runListFlavors(args []string) error {

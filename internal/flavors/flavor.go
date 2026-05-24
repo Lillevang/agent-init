@@ -40,6 +40,12 @@ type Flavor struct {
 	// project (entry points, go.mod, language-specific layout) but would
 	// collide with an existing project's structure.
 	FreshOnlyPaths []string
+	// SupportsVisibility is true for flavors whose agentic envelope can be
+	// hidden from version control via `init --visibility=...`. Set on code
+	// flavors (which ship the .agent/.devcontainer/Justfile envelope). Left
+	// false on doc-collab flavors, whose files are the deliverable rather than
+	// agentic plumbing, so the flag is rejected for them.
+	SupportsVisibility bool
 }
 
 // Symlink describes a symlink the scaffold engine should create after
