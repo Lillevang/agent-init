@@ -12,10 +12,16 @@ func Templates() embed.FS {
 	return templates
 }
 
+// ExecutablePaths is empty because this flavor ships no scripts — the
+// scaffold is a document-collaboration folder, not a code project. No
+// done-gate, no codemap regeneration.
 func ExecutablePaths() []string {
 	return nil
 }
 
+// NextSteps returns the post-scaffold message tailored to a doc-collab
+// workspace. No devcontainer, no `just check` — the next moves are to fill
+// in the agent instructions and load the folder into Claude Cowork.
 func NextSteps(target string) string {
 	return fmt.Sprintf(`
 Next steps:

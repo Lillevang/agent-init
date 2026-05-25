@@ -16,11 +16,14 @@ import (
 )
 
 type Options struct {
-	Flavor     flavors.Flavor
-	Target     string
-	Force      bool
-	InitGit    bool
-	DryRun     bool
+	Flavor  flavors.Flavor
+	Target  string
+	Force   bool
+	InitGit bool
+	DryRun  bool
+	// AgentsOnly drops the fresh-project files declared in
+	// Flavor.FreshOnlyPaths and prefers any ".agents-only" variant template
+	// files. Used to add the agentic envelope to an existing project.
 	AgentsOnly bool
 	Out        io.Writer
 	counts     *operationCounts
@@ -46,6 +49,10 @@ const (
 	ansiBoldGreen = "\x1b[1;32m"
 )
 
+// agentsOnlySuffix marks a template file as the variant to use in
+// agents-only mode. The suffix is stripped from the destination path before
+// writing, so `Justfile.agents-only.tmpl` writes as `Justfile`. In fresh
+// mode the variant is skipped entirely.
 const agentsOnlySuffix = ".agents-only"
 
 type templateData struct {
@@ -78,11 +85,20 @@ func Run(ctx context.Context, opts Options) error {
 			return err
 		}
 	}
-	printSummary(out, opts.DryRun, counts, style)
 	printNextSteps(out, opts.Flavor, target)
+	printSummary(out, opts.DryRun, counts, style)
 	return nil
 }
 
+// Overlay writes a single template layer onto an existing target directory.
+// Unlike Run, it does not init git, create symlinks, or print a next-steps
+// message — it just walks the layer and writes (or skips, or dry-runs) the
+// files using the same engine semantics as a normal scaffold. Use this for
+// incremental subcommands like add-tracker that augment an already-scaffolded
+// project.
+//
+// opts.Flavor is ignored except for opts.Force, opts.DryRun, opts.Target,
+// opts.Out — the other Flavor fields (Symlinks, NextSteps, etc.) are not used.
 func Overlay(opts Options, fsys fs.FS, root string) error {
 	out := opts.Out
 	if out == nil {
@@ -149,6 +165,8 @@ func walkLayer(opts Options, fsys fs.FS, root, target string, data templateData,
 	if err != nil {
 		return fmt.Errorf("opening template root %q: %w", root, err)
 	}
+	// First pass: in agents-only mode, identify destination rels that have a
+	// .agents-only variant in this layer so the base file gets shadowed.
 	coveredByVariant := map[string]bool{}
 	if opts.AgentsOnly {
 		if err := fs.WalkDir(rootFS, ".", func(path string, entry fs.DirEntry, err error) error {
@@ -170,6 +188,8 @@ func walkLayer(opts Options, fsys fs.FS, root, target string, data templateData,
 			return err
 		}
 	}
+	// Pre-render FreshOnlyPaths once so the per-file check is a plain
+	// string comparison.
 	freshOnly := renderedFreshOnly(opts, data)
 	return fs.WalkDir(rootFS, ".", func(path string, entry fs.DirEntry, err error) error {
 		if err != nil {
@@ -214,6 +234,9 @@ func walkLayer(opts Options, fsys fs.FS, root, target string, data templateData,
 	})
 }
 
+// renderedFreshOnly resolves Flavor.FreshOnlyPaths into a set of rendered
+// destination paths for the active scaffold. Only meaningful when
+// opts.AgentsOnly is set; callers check that before consulting the result.
 func renderedFreshOnly(opts Options, data templateData) map[string]bool {
 	if !opts.AgentsOnly || len(opts.Flavor.FreshOnlyPaths) == 0 {
 		return nil
@@ -322,7 +345,7 @@ func createSymlinks(opts Options, target string, out io.Writer) error {
 
 func link(opts Options, dir, name, dest, display string, out io.Writer) error {
 	path := filepath.Join(dir, name)
-	if display == "" {
+	if display == "" || strings.HasPrefix(display, "..") {
 		display = name
 	}
 	info, exists, err := lstat(path)

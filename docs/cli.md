@@ -73,7 +73,7 @@ Multiple trackers can be added to the same workspace. Useful during migrations (
 
 ### Credentials
 
-The merged `.mcp.json` entry references every credential from the environment via `${env:VAR}` (e.g. `\"GITHUB_PERSONAL_ACCESS_TOKEN\": \"${env:GITHUB_TOKEN}\"`). No empty literal is ever written, so there is no field inviting a pasted secret into the tracked file. Set the vars in your shell or a gitignored `.env`; each tracker ships `integrations/<tracker>/.env.example` listing what it needs. For the GitHub tracker, `export GITHUB_TOKEN=\"$(gh auth token)\"` reuses the devcontainer's existing `gh` login. `add-tracker` prints the variable names and this guidance after merging. Changing `.mcp.json` requires restarting the MCP client (or session) to reconnect. See [`trackerEnvVars`](../internal/cli/cli.go) and [`internal/trackers/registry.go`](../internal/trackers/registry.go).
+The merged `.mcp.json` entry references every credential from the environment via `${env:VAR}` (e.g. `"GITHUB_PERSONAL_ACCESS_TOKEN": "${env:GITHUB_TOKEN}"`). No empty literal is ever written, so there is no field inviting a pasted secret into the tracked file. Set the vars in your shell or a gitignored `.env`; each tracker ships `integrations/<tracker>/.env.example` listing what it needs. For the GitHub tracker, `export GITHUB_TOKEN="$(gh auth token)"` reuses the devcontainer's existing `gh` login. `add-tracker` prints the variable names and this guidance after merging. Changing `.mcp.json` requires restarting the MCP client (or session) to reconnect. See [`trackerEnvVars`](../internal/cli/cli.go) and [`internal/trackers/registry.go`](../internal/trackers/registry.go).
 
 ### Removing a tracker
 
@@ -81,7 +81,7 @@ There is no `remove-tracker` subcommand yet. Manual cleanup:
 
 1. Delete `integrations/<tracker>/`.
 2. Remove the entry from `.mcp.json` under `mcpServers`.
-3. Remove the tracker name from `AGENTS.md`'s \"Active trackers\" line.
+3. Remove the tracker name from `AGENTS.md`'s "Active trackers" line.
 
 ## `list-flavors`
 
@@ -156,8 +156,8 @@ agent-init list-flavors --help
 Invalid input prints a short hint and points the user at `--help`, then exits
 non-zero. Specific cases worth knowing:
 
-- **Unknown subcommand** prints `unknown command \"foo\"` followed by `Run 'agent-init --help' for usage`.
-- **Unknown flavor** prints the list of known flavors: `unknown flavor \"foo\"` (known: claude-cowork, fullstack, go-backend, go-cli, project-management)`, then the init `--help` hint.
+- **Unknown subcommand** prints `unknown command "foo"` followed by `Run 'agent-init --help' for usage`.
+- **Unknown flavor** prints the list of known flavors: `unknown flavor "foo" (known: claude-cowork, fullstack, go-backend, go-cli, project-management)`, then the init `--help` hint.
 - **Unknown tracker** prints the list of known trackers, then the add-tracker `--help` hint.
 - **`add-tracker` on a target without `.mcp.json`** suggests the corresponding `init` command.
 
