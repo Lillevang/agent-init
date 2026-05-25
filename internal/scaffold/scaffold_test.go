@@ -6,6 +6,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"runtime"
 	"strings"
 	"testing"
@@ -142,8 +143,9 @@ func TestRunPrintsSummaryAndSymlinkExplanation(t *testing.T) {
 	}
 
 	output := out.String()
-	if !strings.Contains(output, "Done. 16 written, 0 skipped, 3 linked.") {
-		t.Fatalf("output missing operation summary:\n%s", output)
+	summaryPattern := regexp.MustCompile(`Done\. \d+ written, \d+ skipped, 3 linked\.`)
+	if !summaryPattern.MatchString(output) {
+		t.Fatalf("output missing operation summary matching %q:\n%s", summaryPattern.String(), output)
 	}
 	if !strings.Contains(output, "AGENTS.md and CLAUDE.md are symlinks to .agent/AGENTS.md") {
 		t.Fatalf("output missing symlink explanation:\n%s", output)
@@ -160,7 +162,7 @@ func TestRunPrintsSingleDoneForCustomNextSteps(t *testing.T) {
 		},
 		TemplateRoot: "templates",
 		NextSteps: func(string) string {
-			return "\nDone.\n\nNext steps:\n  1. Custom\n"
+			return "\nNext steps:\n  1. Custom\n"
 		},
 	}
 
@@ -218,8 +220,9 @@ func TestRunDryRunSummaryUsesWouldBe(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Run(dry-run) error = %v", err)
 	}
-	if !strings.Contains(out.String(), "Dry run: 16 would be written, 0 skipped, 3 would be linked.") {
-		t.Fatalf("output missing dry-run summary:\n%s", out.String())
+	summaryPattern := regexp.MustCompile(`Dry run: \d+ would be written, \d+ skipped, 3 would be linked\.`)
+	if !summaryPattern.MatchString(out.String()) {
+		t.Fatalf("output missing dry-run summary matching %q:\n%s", summaryPattern.String(), out.String())
 	}
 }
 

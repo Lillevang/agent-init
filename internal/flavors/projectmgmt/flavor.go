@@ -12,18 +12,12 @@ func Templates() embed.FS {
 	return templates
 }
 
-// ExecutablePaths is empty — this flavor ships markdown and JSON, no scripts.
 func ExecutablePaths() []string {
 	return nil
 }
 
-// NextSteps tailors the post-scaffold message for a PM workspace. No
-// devcontainer, no `just check`. The next move is to wire a tracker via
-// `agent-init add-tracker`, then start filling in stakeholders/decisions.
 func NextSteps(target string) string {
 	return fmt.Sprintf(`
-Done.
-
 Next steps:
   1. Edit %s/AGENTS.md — replace the "Project context" paragraph and
      the "Active trackers" line (initially blank).
