@@ -22,8 +22,6 @@ func ExecutablePaths() []string {
 // `agent-init add-tracker`, then start filling in stakeholders/decisions.
 func NextSteps(target string) string {
 	return fmt.Sprintf(`
-Done.
-
 Next steps:
   1. Edit %s/AGENTS.md — replace the "Project context" paragraph and
      the "Active trackers" line (initially blank).

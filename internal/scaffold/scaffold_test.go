@@ -6,7 +6,9 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"runtime"
+	"strings"
 	"testing"
 	"testing/fstest"
 
@@ -38,6 +40,190 @@ func TestRunWritesFullstackScaffold(t *testing.T) {
 	assertSymlink(t, filepath.Join(target, ".agent", "CLAUDE.md"), "AGENTS.md")
 	assertSymlink(t, filepath.Join(target, "AGENTS.md"), ".agent/AGENTS.md")
 	assertSymlink(t, filepath.Join(target, "CLAUDE.md"), ".agent/CLAUDE.md")
+}
+
+func TestRunPrintsCleanSymlinkPathsForRelativeTarget(t *testing.T) {
+	workspace := t.TempDir()
+	target := filepath.Join(workspace, "reltest")
+	if err := os.Mkdir(target, 0o755); err != nil {
+		t.Fatalf("create target: %v", err)
+	}
+	oldwd, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("get cwd: %v", err)
+	}
+	if err := os.Chdir(workspace); err != nil {
+		t.Fatalf("chdir workspace: %v", err)
+	}
+	t.Cleanup(func() {
+		if err := os.Chdir(oldwd); err != nil {
+			t.Fatalf("restore cwd: %v", err)
+		}
+	})
+
+	var out bytes.Buffer
+	err = scaffold.Run(context.Background(), scaffold.Options{
+		Flavor:  mustFlavor(t, "fullstack"),
+		Target:  "reltest",
+		InitGit: false,
+		Out:     &out,
+	})
+	if err != nil {
+		t.Fatalf("Run() error = %v", err)
+	}
+
+	output := out.String()
+	for _, want := range []string{
+		"  link   AGENTS.md -> .agent/AGENTS.md",
+		"  link   CLAUDE.md -> .agent/CLAUDE.md",
+		"  link   .agent/CLAUDE.md -> AGENTS.md",
+	} {
+		if !strings.Contains(output, want) {
+			t.Fatalf("output missing %q:\n%s", want, output)
+		}
+	}
+	if strings.Contains(output, "link   reltest/") {
+		t.Fatalf("link output included target directory prefix:\n%s", output)
+	}
+}
+
+func TestRunPrintsCleanSymlinkPathsForSymlinkedTarget(t *testing.T) {
+	realRoot := t.TempDir()
+	linkRoot := filepath.Join(t.TempDir(), "linked-root")
+	if err := os.Symlink(realRoot, linkRoot); err != nil {
+		t.Fatalf("create symlinked root: %v", err)
+	}
+	target := filepath.Join(linkRoot, "reltest")
+	var out bytes.Buffer
+
+	err := scaffold.Run(context.Background(), scaffold.Options{
+		Flavor:  mustFlavor(t, "fullstack"),
+		Target:  target,
+		InitGit: false,
+		Out:     &out,
+	})
+	if err != nil {
+		t.Fatalf("Run() error = %v", err)
+	}
+
+	output := out.String()
+	for _, want := range []string{
+		"  link   AGENTS.md -> .agent/AGENTS.md",
+		"  link   CLAUDE.md -> .agent/CLAUDE.md",
+		"  link   .agent/CLAUDE.md -> AGENTS.md",
+	} {
+		if !strings.Contains(output, want) {
+			t.Fatalf("output missing %q:\n%s", want, output)
+		}
+	}
+	for _, line := range strings.Split(output, "\n") {
+		if !strings.HasPrefix(line, "  link") {
+			continue
+		}
+		if strings.Contains(line, realRoot) || strings.Contains(line, linkRoot) {
+			t.Fatalf("link output leaked target directory path in %q:\n%s", line, output)
+		}
+	}
+	assertSymlink(t, filepath.Join(realRoot, "reltest", "AGENTS.md"), ".agent/AGENTS.md")
+}
+
+func TestRunPrintsSummaryAndSymlinkExplanation(t *testing.T) {
+	t.Parallel()
+	target := t.TempDir()
+	var out bytes.Buffer
+
+	err := scaffold.Run(context.Background(), scaffold.Options{
+		Flavor:  mustFlavor(t, "fullstack"),
+		Target:  target,
+		InitGit: false,
+		Out:     &out,
+	})
+	if err != nil {
+		t.Fatalf("Run() error = %v", err)
+	}
+
+	output := out.String()
+	summaryPattern := regexp.MustCompile(`Done\. \d+ written, \d+ skipped, 3 linked\.`)
+	if !summaryPattern.MatchString(output) {
+		t.Fatalf("output missing operation summary matching %q:\n%s", summaryPattern.String(), output)
+	}
+	if !strings.Contains(output, "AGENTS.md and CLAUDE.md are symlinks to .agent/AGENTS.md") {
+		t.Fatalf("output missing symlink explanation:\n%s", output)
+	}
+}
+
+func TestRunPrintsSingleDoneForCustomNextSteps(t *testing.T) {
+	t.Parallel()
+	var out bytes.Buffer
+	flavor := flavors.Flavor{
+		Name: "custom-next-steps",
+		Templates: fstest.MapFS{
+			"templates/README.md": &fstest.MapFile{Data: []byte("README"), Mode: 0o644},
+		},
+		TemplateRoot: "templates",
+		NextSteps: func(string) string {
+			return "\nNext steps:\n  1. Custom\n"
+		},
+	}
+
+	err := scaffold.Run(context.Background(), scaffold.Options{
+		Flavor:  flavor,
+		Target:  t.TempDir(),
+		InitGit: false,
+		Out:     &out,
+	})
+	if err != nil {
+		t.Fatalf("Run() error = %v", err)
+	}
+
+	output := out.String()
+	if got := strings.Count(output, "Done."); got != 1 {
+		t.Fatalf("Done. count = %d, want 1:\n%s", got, output)
+	}
+	if !strings.Contains(output, "Done. 1 written, 0 skipped, 0 linked.") {
+		t.Fatalf("output missing summary:\n%s", output)
+	}
+	if !strings.Contains(output, "Next steps:\n  1. Custom") {
+		t.Fatalf("output missing custom next steps:\n%s", output)
+	}
+}
+
+func TestRunCapturedOutputContainsNoANSI(t *testing.T) {
+	t.Parallel()
+	var out bytes.Buffer
+
+	err := scaffold.Run(context.Background(), scaffold.Options{
+		Flavor:  mustFlavor(t, "fullstack"),
+		Target:  t.TempDir(),
+		InitGit: false,
+		Out:     &out,
+	})
+	if err != nil {
+		t.Fatalf("Run() error = %v", err)
+	}
+	if strings.Contains(out.String(), "\x1b[") {
+		t.Fatalf("captured output contains raw ANSI escapes:\n%q", out.String())
+	}
+}
+
+func TestRunDryRunSummaryUsesWouldBe(t *testing.T) {
+	t.Parallel()
+	var out bytes.Buffer
+
+	err := scaffold.Run(context.Background(), scaffold.Options{
+		Flavor:  mustFlavor(t, "fullstack"),
+		Target:  filepath.Join(t.TempDir(), "planned"),
+		InitGit: false,
+		DryRun:  true,
+		Out:     &out,
+	})
+	if err != nil {
+		t.Fatalf("Run(dry-run) error = %v", err)
+	}
+	summaryPattern := regexp.MustCompile(`Dry run: \d+ would be written, \d+ skipped, 3 would be linked\.`)
+	if !summaryPattern.MatchString(out.String()) {
+		t.Fatalf("output missing dry-run summary matching %q:\n%s", summaryPattern.String(), out.String())
+	}
 }
 
 func TestRunSkipsExistingFilesUnlessForced(t *testing.T) {

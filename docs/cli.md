@@ -41,6 +41,12 @@ agent-init ./my-tool                      # path-only form; implies fullstack
 - With `--visibility=local`: after the scaffold is written (symlinks and `git init` included — visibility controls tracking, not creation), a fenced block is appended to the committed `.gitignore`, creating it if absent. The block covers the agentic envelope (`.agent/`, `/AGENTS.md`, `/CLAUDE.md`, `.devcontainer/`, `/Justfile`, `.pre-commit-config.yaml`). It is delimited by `# >>> agent-init (private) >>>` / `# <<< agent-init <<<` markers, so re-running replaces it in place (never duplicates) and it can be removed by hand to undo. `init` prints the absolute path it edited. `--dry-run` previews the path and block, writing nothing. Block management lives in [internal/gitignore](../internal/gitignore/gitignore.go).
 - Source: [scaffold.go:31](../internal/scaffold/scaffold.go#L31) (`Run`), [cli.go:applyVisibility](../internal/cli/cli.go).
 
+### Output
+
+- When the output stream is a TTY, `init` colorizes its output verbs (`write`, `skip`, `link`) and prints a final `Done.` summary. Color is disabled when `NO_COLOR` is set, `TERM=dumb`, or the output is not a TTY (e.g. a pipe or file).
+- Symlink paths are displayed relative to the scaffolded project root, even when the target directory is specified with a relative path (`./foo`) or via a symlink.
+- The `NextSteps` message for code-based flavors explains that `AGENTS.md` and `CLAUDE.md` in the root are symlinks to a canonical file under `.agent/`.
+
 ## `add-tracker`
 
 Adds a work-tracker integration (Jira, Azure DevOps, or GitHub) to an existing `project-management` scaffold. Only meaningful for that flavor — the subcommand errors if the target lacks an `.mcp.json` file (the scaffold-presence marker).

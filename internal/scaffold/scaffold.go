@@ -26,7 +26,28 @@ type Options struct {
 	// files. Used to add the agentic envelope to an existing project.
 	AgentsOnly bool
 	Out        io.Writer
+	counts     *operationCounts
+	style      outputStyle
 }
+
+type operationCounts struct {
+	written int
+	skipped int
+	linked  int
+}
+
+type outputStyle struct {
+	enabled bool
+}
+
+const (
+	ansiReset     = "\x1b[0m"
+	ansiBold      = "\x1b[1m"
+	ansiGreen     = "\x1b[32m"
+	ansiYellow    = "\x1b[33m"
+	ansiCyan      = "\x1b[36m"
+	ansiBoldGreen = "\x1b[1;32m"
+)
 
 // agentsOnlySuffix marks a template file as the variant to use in
 // agents-only mode. The suffix is stripped from the destination path before
@@ -43,12 +64,16 @@ func Run(ctx context.Context, opts Options) error {
 	if out == nil {
 		out = io.Discard
 	}
+	counts := &operationCounts{}
+	opts.counts = counts
+	style := outputStyle{enabled: colorEnabled(out)}
+	opts.style = style
 	target, err := prepareTarget(opts.Target, opts.DryRun)
 	if err != nil {
 		return err
 	}
 	data := templateData{ProjectName: filepath.Base(target)}
-	_, _ = fmt.Fprintf(out, "-> Scaffolding %s agentic dev environment in: %s\n", opts.Flavor.Name, target)
+	_, _ = fmt.Fprintf(out, "%s\n", style.header(fmt.Sprintf("-> Scaffolding %s agentic dev environment in: %s", opts.Flavor.Name, target)))
 	if err := writeTemplates(opts, target, data, out); err != nil {
 		return err
 	}
@@ -61,6 +86,7 @@ func Run(ctx context.Context, opts Options) error {
 		}
 	}
 	printNextSteps(out, opts.Flavor, target)
+	printSummary(out, opts.DryRun, counts, style)
 	return nil
 }
 
@@ -233,11 +259,17 @@ func writeFile(opts Options, target, rel string, content []byte, out io.Writer) 
 		return fmt.Errorf("checking %s: %w", rel, err)
 	}
 	if exists && !opts.Force {
-		_, _ = fmt.Fprintf(out, "  skip   %s (exists, use --force to overwrite)\n", rel)
+		if opts.counts != nil {
+			opts.counts.skipped++
+		}
+		printOperation(out, opts.style, "skip", "%s (exists, use --force to overwrite)", rel)
 		return nil
 	}
 	if opts.DryRun {
-		_, _ = fmt.Fprintf(out, "  write  %s (dry-run)\n", rel)
+		if opts.counts != nil {
+			opts.counts.written++
+		}
+		printOperation(out, opts.style, "write", "%s (dry-run)", rel)
 		return nil
 	}
 	if exists {
@@ -263,7 +295,10 @@ func writeFile(opts Options, target, rel string, content []byte, out io.Writer) 
 	if err := os.Chmod(dst, mode); err != nil {
 		return fmt.Errorf("setting permissions on %s: %w", rel, err)
 	}
-	_, _ = fmt.Fprintf(out, "  write  %s\n", rel)
+	if opts.counts != nil {
+		opts.counts.written++
+	}
+	printOperation(out, opts.style, "write", "%s", rel)
 	return nil
 }
 
@@ -301,16 +336,15 @@ func createSymlinks(opts Options, target string, out io.Writer) error {
 	for _, sl := range opts.Flavor.Symlinks {
 		dir, name := filepath.Split(sl.Path)
 		linkDir := filepath.Join(target, filepath.FromSlash(dir))
-		if err := link(opts, linkDir, name, sl.Target, out); err != nil {
+		if err := link(opts, linkDir, name, sl.Target, filepath.ToSlash(sl.Path), out); err != nil {
 			return err
 		}
 	}
 	return nil
 }
 
-func link(opts Options, dir, name, dest string, out io.Writer) error {
+func link(opts Options, dir, name, dest, display string, out io.Writer) error {
 	path := filepath.Join(dir, name)
-	display := strings.TrimPrefix(filepath.ToSlash(strings.TrimPrefix(path, opts.Target)), "/")
 	if display == "" || strings.HasPrefix(display, "..") {
 		display = name
 	}
@@ -319,10 +353,16 @@ func link(opts Options, dir, name, dest string, out io.Writer) error {
 		return fmt.Errorf("checking %s: %w", display, err)
 	}
 	if exists && !opts.Force {
+		if opts.counts != nil {
+			opts.counts.skipped++
+		}
 		return nil
 	}
 	if opts.DryRun {
-		_, _ = fmt.Fprintf(out, "  link   %s -> %s (dry-run)\n", display, dest)
+		if opts.counts != nil {
+			opts.counts.linked++
+		}
+		printOperation(out, opts.style, "link", "%s -> %s (dry-run)", display, dest)
 		return nil
 	}
 	if exists {
@@ -339,7 +379,10 @@ func link(opts Options, dir, name, dest string, out io.Writer) error {
 	if err := os.Symlink(dest, path); err != nil {
 		return fmt.Errorf("creating symlink %s: %w", display, err)
 	}
-	_, _ = fmt.Fprintf(out, "  link   %s -> %s\n", display, dest)
+	if opts.counts != nil {
+		opts.counts.linked++
+	}
+	printOperation(out, opts.style, "link", "%s -> %s", display, dest)
 	return nil
 }
 
@@ -360,21 +403,84 @@ func initGit(ctx context.Context, target string, dryRun bool, out io.Writer) err
 	return nil
 }
 
+func printSummary(out io.Writer, dryRun bool, counts *operationCounts, style outputStyle) {
+	if counts == nil {
+		return
+	}
+	if dryRun {
+		_, _ = fmt.Fprintf(out, "\nDry run: %d would be written, %d skipped, %d would be linked.\n", counts.written, counts.skipped, counts.linked)
+		return
+	}
+	_, _ = fmt.Fprintf(out, "\n%s\n", style.done(fmt.Sprintf("Done. %d written, %d skipped, %d linked.", counts.written, counts.skipped, counts.linked)))
+}
+
+func printOperation(out io.Writer, style outputStyle, op, format string, args ...any) {
+	_, _ = fmt.Fprintf(out, "  %s%s%s\n", style.verb(op), strings.Repeat(" ", 7-len(op)), fmt.Sprintf(format, args...))
+}
+
+func colorEnabled(out io.Writer) bool {
+	return colorEnabledWith(out, os.Getenv, isTerminal)
+}
+
+func colorEnabledWith(out io.Writer, getenv func(string) string, isTerm func(*os.File) bool) bool {
+	if getenv("NO_COLOR") != "" || getenv("TERM") == "dumb" {
+		return false
+	}
+	file, ok := out.(*os.File)
+	if !ok {
+		return false
+	}
+	info, err := file.Stat()
+	if err != nil || info.Mode()&os.ModeCharDevice == 0 {
+		return false
+	}
+	return isTerm(file)
+}
+
+func (s outputStyle) header(text string) string {
+	if !s.enabled {
+		return text
+	}
+	return ansiBold + text + ansiReset
+}
+
+func (s outputStyle) done(text string) string {
+	if !s.enabled {
+		return text
+	}
+	return ansiBoldGreen + text + ansiReset
+}
+
+func (s outputStyle) verb(op string) string {
+	if !s.enabled {
+		return op
+	}
+	switch op {
+	case "write":
+		return ansiGreen + op + ansiReset
+	case "skip":
+		return ansiYellow + op + ansiReset
+	case "link":
+		return ansiCyan + op + ansiReset
+	default:
+		return op
+	}
+}
+
 func printNextSteps(out io.Writer, flavor flavors.Flavor, target string) {
 	if flavor.NextSteps != nil {
 		_, _ = fmt.Fprint(out, flavor.NextSteps(target))
 		return
 	}
 	_, _ = fmt.Fprintf(out, `
-Done.
-
 Next steps:
   1. Read %s/README.agent.md for dependency install instructions
   2. Edit .agent/AGENTS.md to describe THIS project's specifics
-  3. Edit .agent/CODEBASE.md once you have code to map
-  4. Run:  devcontainer up --workspace-folder %s
-  5. Run:  devcontainer exec --workspace-folder %s bash
-  6. Inside the container: just check
+  3. AGENTS.md and CLAUDE.md are symlinks to .agent/AGENTS.md; edit that one file
+  4. Edit .agent/CODEBASE.md once you have code to map
+  5. Run:  devcontainer up --workspace-folder %s
+  6. Run:  devcontainer exec --workspace-folder %s bash
+  7. Inside the container: just check
 `, target, target, target)
 }
 

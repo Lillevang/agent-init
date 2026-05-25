@@ -24,8 +24,6 @@ func ExecutablePaths() []string {
 // in the agent instructions and load the folder into Claude Cowork.
 func NextSteps(target string) string {
 	return fmt.Sprintf(`
-Done.
-
 Next steps:
   1. Edit %s/AGENTS.md — replace the "What this workspace is" paragraph
      with one or two sentences describing what you and your coworkers do here.
