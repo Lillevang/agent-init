@@ -5,8 +5,8 @@
 // markers so it can be found, replaced in place (idempotent re-runs), and
 // removed by hand to undo. The same block is written to different target files
 // depending on the chosen visibility mode. This package owns the block itself
-// and the repo-local targets: the committed .gitignore for "local" (shipped)
-// and, when it lands, .git/info/exclude for "hidden" (#53). The machine-wide
+// and the repo-local targets: the committed .gitignore for "local" and the
+// never-committed .git/info/exclude for "hidden". The machine-wide
 // "global-default" mode (#52) mutates the user's global git excludes and
 // belongs in internal/gitconfig/, not here, per the repo conventions.
 package gitignore
@@ -86,6 +86,58 @@ func EnsureLocal(target string) (string, error) {
 		return "", fmt.Errorf("writing %s: %w", path, err)
 	}
 	return path, nil
+}
+
+// HiddenPath returns the absolute path of the repo-local .git/info/exclude that
+// EnsureHidden manages for the given target directory. The path is computed, not
+// validated: EnsureHidden creates the .git/info parent if absent.
+func HiddenPath(target string) (string, error) {
+	abs, err := filepath.Abs(filepath.Join(target, ".git", "info", "exclude"))
+	if err != nil {
+		return "", fmt.Errorf("resolving .git/info/exclude path: %w", err)
+	}
+	return abs, nil
+}
+
+// EnsureHidden appends the fenced ignore block to the repo-local
+// .git/info/exclude in target, creating the file (and its .git/info parent) if
+// absent. Like EnsureLocal it replaces an existing block in place so re-runs
+// never duplicate it. Unlike .gitignore, .git/info/exclude is never committed,
+// so this leaves no tracked trace of the scaffold. It returns the absolute path
+// of the file it wrote.
+//
+// Callers normally run this after `git init` has created the repo, so .git
+// already exists. If target is not a git repo (e.g. init --private --no-git on
+// a bare directory), this still creates a minimal .git/info/exclude; a later
+// `git init` preserves that file rather than clobbering it, so the rule
+// survives. Writing into a non-repo .git/ is harmless but is the only case
+// where this materializes part of a .git/ tree.
+func EnsureHidden(target string) (string, error) {
+	path, err := HiddenPath(target)
+	if err != nil {
+		return "", err
+	}
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		return "", fmt.Errorf("creating %s: %w", filepath.Dir(path), err)
+	}
+	existing, err := os.ReadFile(path)
+	if err != nil && !os.IsNotExist(err) {
+		return "", fmt.Errorf("reading %s: %w", path, err)
+	}
+	updated := upsertBlock(string(existing))
+	if err := os.WriteFile(path, []byte(updated), 0o644); err != nil {
+		return "", fmt.Errorf("writing %s: %w", path, err)
+	}
+	return path, nil
+}
+
+// Upsert returns content with the managed block present exactly once, replacing
+// an existing block in place or appending it. It is exported so other targets of
+// the same block (e.g. the machine-wide excludes file managed by
+// internal/gitconfig for the "global-default" mode) reuse the identical block
+// content and idempotency rules rather than re-implementing them.
+func Upsert(content string) string {
+	return upsertBlock(content)
 }
 
 // upsertBlock returns content with the managed block present exactly once. An

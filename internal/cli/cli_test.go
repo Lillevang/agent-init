@@ -224,20 +224,268 @@ func TestInitVisibilityLocalRejectedOnDocCollabFlavor(t *testing.T) {
 	}
 }
 
-func TestInitVisibilityUnimplementedModesRejected(t *testing.T) {
+// All four visibility modes are now implemented, so there is no
+// "unimplemented modes rejected" test. Unknown values are covered by
+// TestInitVisibilityUnknownValueRejected; per-mode behavior is covered by the
+// hidden and global-default tests below.
+
+// hiddenExcludePath is the repo-local exclude file hidden mode writes to.
+func hiddenExcludePath(target string) string {
+	return filepath.Join(target, ".git", "info", "exclude")
+}
+
+func TestInitVisibilityHiddenWritesGitInfoExclude(t *testing.T) {
 	t.Parallel()
-	for _, mode := range []string{"hidden", "global-default"} {
+	target := filepath.Join(t.TempDir(), "proj")
+	var out bytes.Buffer
+	app := cli.New(&out, &bytes.Buffer{}, cli.Version{})
+
+	if err := app.Run(context.Background(), []string{"init", "--no-git", "--visibility=hidden", "go-cli", target}); err != nil {
+		t.Fatalf("Run(init --visibility=hidden go-cli) error = %v", err)
+	}
+
+	exclude := hiddenExcludePath(target)
+	content, err := os.ReadFile(exclude)
+	if err != nil {
+		t.Fatalf("read .git/info/exclude: %v", err)
+	}
+	for _, want := range []string{"agent-init", ".agent/", "/AGENTS.md", ".devcontainer/", "/Justfile"} {
+		if !strings.Contains(string(content), want) {
+			t.Errorf(".git/info/exclude missing %q:\n%s", want, content)
+		}
+	}
+	// Hidden mode must leave no committed trace. The flavor ships its own
+	// .gitignore, so the file exists — but our block must not be in it.
+	if gi, err := os.ReadFile(filepath.Join(target, ".gitignore")); err == nil {
+		if strings.Contains(string(gi), "agent-init (private)") {
+			t.Errorf("hidden mode wrote the block to the committed .gitignore:\n%s", gi)
+		}
+	}
+	// The side effect must be announced with the absolute path.
+	if !strings.Contains(out.String(), exclude) {
+		t.Errorf("init output did not announce the exclude path %q:\n%s", exclude, out.String())
+	}
+}
+
+// TestInitPrivateAliasMatchesHidden checks --private is a true alias: it writes
+// the same block to the same file as --visibility=hidden and nothing else.
+func TestInitPrivateAliasMatchesHidden(t *testing.T) {
+	t.Parallel()
+	target := filepath.Join(t.TempDir(), "proj")
+	app := cli.New(&bytes.Buffer{}, &bytes.Buffer{}, cli.Version{})
+
+	if err := app.Run(context.Background(), []string{"init", "--no-git", "--private", "go-cli", target}); err != nil {
+		t.Fatalf("Run(init --private go-cli) error = %v", err)
+	}
+
+	exclude := hiddenExcludePath(target)
+	content, err := os.ReadFile(exclude)
+	if err != nil {
+		t.Fatalf("read .git/info/exclude: %v", err)
+	}
+	if !strings.Contains(string(content), "agent-init (private)") {
+		t.Errorf("--private did not write the hidden block:\n%s", content)
+	}
+	if gi, err := os.ReadFile(filepath.Join(target, ".gitignore")); err == nil {
+		if strings.Contains(string(gi), "agent-init (private)") {
+			t.Errorf("--private wrote the block to the committed .gitignore:\n%s", gi)
+		}
+	}
+}
+
+// --private and a conflicting --visibility must error rather than silently
+// disagree. --private alongside --visibility=hidden is redundant but fine.
+func TestInitPrivateConflictsWithVisibility(t *testing.T) {
+	t.Parallel()
+	// An explicitly-set non-hidden --visibility alongside --private is a
+	// conflict — including an explicit --visibility=shared, which must not be
+	// silently overridden by the alias.
+	for _, mode := range []string{"local", "shared"} {
 		t.Run(mode, func(t *testing.T) {
 			t.Parallel()
 			app := cli.New(&bytes.Buffer{}, &bytes.Buffer{}, cli.Version{})
-			err := app.Run(context.Background(), []string{"init", "--no-git", "--visibility=" + mode, "go-cli", t.TempDir()})
+			err := app.Run(context.Background(), []string{"init", "--no-git", "--private", "--visibility=" + mode, "go-cli", t.TempDir()})
 			if err == nil {
-				t.Fatalf("Run(--visibility=%s) error = nil; want not-implemented rejection", mode)
+				t.Fatalf("Run(--private --visibility=%s) error = nil; want conflict rejection", mode)
 			}
-			if !strings.Contains(err.Error(), "not implemented") {
-				t.Fatalf("error = %v; want not-implemented message", err)
+			if !strings.Contains(err.Error(), "conflict") {
+				t.Fatalf("error = %v; want conflict message", err)
 			}
 		})
+	}
+
+	// --private alongside an explicit --visibility=hidden is redundant, not a
+	// conflict.
+	target := filepath.Join(t.TempDir(), "proj")
+	app2 := cli.New(&bytes.Buffer{}, &bytes.Buffer{}, cli.Version{})
+	if err := app2.Run(context.Background(), []string{"init", "--no-git", "--private", "--visibility=hidden", "go-cli", target}); err != nil {
+		t.Fatalf("Run(--private --visibility=hidden) error = %v; want it to be accepted as redundant", err)
+	}
+}
+
+func TestInitVisibilityHiddenIsIdempotent(t *testing.T) {
+	t.Parallel()
+	target := filepath.Join(t.TempDir(), "proj")
+	run := func() {
+		app := cli.New(&bytes.Buffer{}, &bytes.Buffer{}, cli.Version{})
+		if err := app.Run(context.Background(), []string{"init", "--no-git", "--force", "--visibility=hidden", "go-cli", target}); err != nil {
+			t.Fatalf("Run error = %v", err)
+		}
+	}
+	run()
+	run()
+
+	content, err := os.ReadFile(hiddenExcludePath(target))
+	if err != nil {
+		t.Fatalf("read .git/info/exclude: %v", err)
+	}
+	if n := strings.Count(string(content), "agent-init (private)"); n != 1 {
+		t.Errorf("got %d ignore blocks after re-run, want 1:\n%s", n, content)
+	}
+}
+
+// isolateGlobalGitConfig points HOME, XDG_CONFIG_HOME, and GIT_CONFIG_GLOBAL at
+// a temp dir so the global-default tests never read or mutate the developer's
+// real machine-wide git config. GIT_CONFIG_GLOBAL is what `git config --global`
+// reads/writes; pinning it to a temp file is the seam that makes shelling out
+// to git safe in tests. Returns the temp HOME.
+func isolateGlobalGitConfig(t *testing.T) string {
+	t.Helper()
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("XDG_CONFIG_HOME", "")
+	t.Setenv("GIT_CONFIG_GLOBAL", filepath.Join(home, ".gitconfig"))
+	return home
+}
+
+func TestInitVisibilityGlobalDefaultWritesExcludesAndWarns(t *testing.T) {
+	home := isolateGlobalGitConfig(t)
+	var out, errOut bytes.Buffer
+	app := cli.New(&out, &errOut, cli.Version{})
+
+	target := filepath.Join(t.TempDir(), "proj")
+	if err := app.Run(context.Background(), []string{"init", "--no-git", "--visibility=global-default", "go-cli", target}); err != nil {
+		t.Fatalf("Run(--visibility=global-default) error = %v", err)
+	}
+
+	// With no core.excludesfile configured, the block lands in the default
+	// XDG path under the fake HOME.
+	excludes := filepath.Join(home, ".config", "git", "ignore")
+	content, err := os.ReadFile(excludes)
+	if err != nil {
+		t.Fatalf("read global excludes: %v", err)
+	}
+	if !strings.Contains(string(content), "agent-init (private)") {
+		t.Errorf("global excludes missing the block:\n%s", content)
+	}
+	// The edited path must be announced on stdout.
+	if !strings.Contains(out.String(), excludes) {
+		t.Errorf("did not announce the global excludes path %q:\n%s", excludes, out.String())
+	}
+	// The machine-wide warning must be loud (on stderr).
+	if !strings.Contains(strings.ToUpper(errOut.String()), "MACHINE-WIDE") || !strings.Contains(errOut.String(), "EVERY") {
+		t.Errorf("missing machine-wide warning on stderr:\n%s", errOut.String())
+	}
+	// The force-add escape hatch is printed.
+	if !strings.Contains(out.String(), "git add -f") {
+		t.Errorf("missing force-add hint:\n%s", out.String())
+	}
+}
+
+func TestInitVisibilityGlobalDefaultIsIdempotent(t *testing.T) {
+	home := isolateGlobalGitConfig(t)
+	run := func() {
+		app := cli.New(&bytes.Buffer{}, &bytes.Buffer{}, cli.Version{})
+		if err := app.Run(context.Background(), []string{"init", "--no-git", "--force", "--visibility=global-default", "go-cli", filepath.Join(home, "proj")}); err != nil {
+			t.Fatalf("Run error = %v", err)
+		}
+	}
+	run()
+	run()
+
+	content, err := os.ReadFile(filepath.Join(home, ".config", "git", "ignore"))
+	if err != nil {
+		t.Fatalf("read global excludes: %v", err)
+	}
+	if n := strings.Count(string(content), "agent-init (private)"); n != 1 {
+		t.Errorf("got %d blocks after re-run, want 1:\n%s", n, content)
+	}
+}
+
+func TestInitVisibilityHiddenRejectedOnDocCollabFlavor(t *testing.T) {
+	t.Parallel()
+	app := cli.New(&bytes.Buffer{}, &bytes.Buffer{}, cli.Version{})
+
+	err := app.Run(context.Background(), []string{"init", "--no-git", "--visibility=hidden", "project-management", t.TempDir()})
+	if err == nil {
+		t.Fatal("Run(init --visibility=hidden project-management) error = nil; want rejection")
+	}
+	if !strings.Contains(err.Error(), "visibility") {
+		t.Fatalf("error = %v; want to mention --visibility", err)
+	}
+}
+
+func TestInitPrivateRejectedOnDocCollabFlavor(t *testing.T) {
+	t.Parallel()
+	app := cli.New(&bytes.Buffer{}, &bytes.Buffer{}, cli.Version{})
+
+	err := app.Run(context.Background(), []string{"init", "--no-git", "--private", "project-management", t.TempDir()})
+	if err == nil {
+		t.Fatal("Run(init --private project-management) error = nil; want rejection")
+	}
+	if !strings.Contains(err.Error(), "visibility") {
+		t.Fatalf("error = %v; want to mention --visibility", err)
+	}
+}
+
+func TestInitVisibilityHiddenDryRunWritesNothing(t *testing.T) {
+	t.Parallel()
+	target := filepath.Join(t.TempDir(), "proj")
+	var out bytes.Buffer
+	app := cli.New(&out, &bytes.Buffer{}, cli.Version{})
+
+	if err := app.Run(context.Background(), []string{"init", "--no-git", "--dry-run", "--private", "go-cli", target}); err != nil {
+		t.Fatalf("Run(--dry-run --private) error = %v", err)
+	}
+	if _, err := os.Stat(hiddenExcludePath(target)); !os.IsNotExist(err) {
+		t.Errorf("dry-run wrote a .git/info/exclude, stat err = %v", err)
+	}
+	if !strings.Contains(out.String(), ".agent/") {
+		t.Errorf("dry-run did not preview the ignore block:\n%s", out.String())
+	}
+}
+
+func TestInitVisibilityGlobalDefaultDryRunWritesNothing(t *testing.T) {
+	home := isolateGlobalGitConfig(t)
+	var out, errOut bytes.Buffer
+	app := cli.New(&out, &errOut, cli.Version{})
+
+	target := filepath.Join(t.TempDir(), "proj")
+	if err := app.Run(context.Background(), []string{"init", "--no-git", "--dry-run", "--visibility=global-default", "go-cli", target}); err != nil {
+		t.Fatalf("Run(--dry-run --visibility=global-default) error = %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(home, ".config", "git", "ignore")); !os.IsNotExist(err) {
+		t.Errorf("dry-run wrote the global excludes, stat err = %v", err)
+	}
+	if !strings.Contains(out.String(), ".agent/") {
+		t.Errorf("dry-run did not preview the ignore block:\n%s", out.String())
+	}
+	// Even dry-run must show the warning so the user understands the scope.
+	if !strings.Contains(strings.ToUpper(errOut.String()), "MACHINE-WIDE") {
+		t.Errorf("dry-run missing machine-wide warning:\n%s", errOut.String())
+	}
+}
+
+func TestInitVisibilityGlobalDefaultRejectedOnDocCollabFlavor(t *testing.T) {
+	t.Parallel()
+	app := cli.New(&bytes.Buffer{}, &bytes.Buffer{}, cli.Version{})
+
+	err := app.Run(context.Background(), []string{"init", "--no-git", "--visibility=global-default", "project-management", t.TempDir()})
+	if err == nil {
+		t.Fatal("Run(--visibility=global-default project-management) error = nil; want rejection")
+	}
+	if !strings.Contains(err.Error(), "visibility") {
+		t.Fatalf("error = %v; want to mention --visibility", err)
 	}
 }
 
