@@ -79,9 +79,12 @@ agent-init add-tracker <tracker> <target-dir>
 agent-init list-flavors
 agent-init list-trackers
 agent-init version
+agent-init upgrade [--check] [--dry-run] [--force]
 ```
 
 Defaults: flavor `fullstack`, target `.`.
+
+`agent-init upgrade` replaces the binary in place with the latest GitHub release, verifying its checksum first. There is no automatic update check — run `agent-init upgrade --check` to see if a newer version exists. See [`docs/cli.md`](./docs/cli.md#upgrade).
 
 Run `agent-init --help` for the subcommand list, and `agent-init <command> --help` for a command's flags and examples. See [`docs/cli.md`](./docs/cli.md) for the full reference.
 

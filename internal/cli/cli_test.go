@@ -839,6 +839,44 @@ func TestHelpFlagsMatchDocs(t *testing.T) {
 	}
 }
 
+func TestUpgradeHelp(t *testing.T) {
+	t.Parallel()
+	var out bytes.Buffer
+	app := cli.New(&out, &bytes.Buffer{}, cli.Version{})
+	if err := app.Run(context.Background(), []string{"upgrade", "--help"}); err != nil {
+		t.Fatalf("Run(upgrade --help) error = %v", err)
+	}
+	for _, want := range []string{"upgrade", "--check", "--dry-run", "--force", "Examples"} {
+		if !strings.Contains(out.String(), want) {
+			t.Errorf("upgrade --help missing %q:\n%s", want, out.String())
+		}
+	}
+}
+
+// A dev build has no release version to compare against, so `upgrade` without
+// --force must refuse before making any network call. This keeps the test
+// hermetic.
+func TestUpgradeDevBuildRefusedWithoutForce(t *testing.T) {
+	t.Parallel()
+	app := cli.New(&bytes.Buffer{}, &bytes.Buffer{}, cli.Version{Version: "dev"})
+	err := app.Run(context.Background(), []string{"upgrade"})
+	if err == nil {
+		t.Fatal("Run(upgrade) on dev build = nil, want error")
+	}
+	if !strings.Contains(err.Error(), "--force") {
+		t.Errorf("dev-build refusal should mention --force; got: %v", err)
+	}
+}
+
+func TestUpgradeRejectsPositionalArgs(t *testing.T) {
+	t.Parallel()
+	app := cli.New(&bytes.Buffer{}, &bytes.Buffer{}, cli.Version{Version: "v1.0.0"})
+	err := app.Run(context.Background(), []string{"upgrade", "extra-arg"})
+	if err == nil {
+		t.Fatal("Run(upgrade extra-arg) = nil, want usage error")
+	}
+}
+
 func TestVersion(t *testing.T) {
 	t.Parallel()
 	var out bytes.Buffer

@@ -16,6 +16,7 @@ import (
 	"github.com/Lillevang/agent-init/internal/gitconfig"
 	"github.com/Lillevang/agent-init/internal/gitignore"
 	"github.com/Lillevang/agent-init/internal/scaffold"
+	"github.com/Lillevang/agent-init/internal/selfupdate"
 	"github.com/Lillevang/agent-init/internal/trackers"
 )
 
@@ -138,7 +139,24 @@ var commands = []commandHelp{
 		summary: "print version info (version + commit + build date)",
 		usage:   "agent-init version",
 	},
+	{
+		name:    "upgrade",
+		summary: "download and install the latest release, replacing this binary",
+		usage:   "agent-init upgrade [--check] [--dry-run] [--force]",
+		flags: []flagHelp{
+			{"--check", "report whether a newer release exists without downloading or installing"},
+			{"--dry-run", "download and verify the latest release but do not replace the binary"},
+			{"--force", "install the latest release even if already up to date (also required to upgrade a dev build)"},
+		},
+		examples: []string{
+			"agent-init upgrade           # install the latest release",
+			"agent-init upgrade --check   # only report whether a newer version exists",
+		},
+	},
 }
+
+// upgradeRepo is the GitHub repository self-upgrade pulls releases from.
+const upgradeRepo = selfupdate.DefaultRepo
 
 func lookupCommand(name string) (commandHelp, bool) {
 	for _, c := range commands {
@@ -188,6 +206,8 @@ func (a App) Run(ctx context.Context, args []string) error {
 		return a.runAddTracker(ctx, args[1:])
 	case "version":
 		return a.runVersion(args[1:])
+	case "upgrade":
+		return a.runUpgrade(ctx, args[1:])
 	case "help":
 		// `help <subcommand>` prints that subcommand's help; bare help is
 		// the top-level overview. (`-h` / `--help` are caught earlier.)
@@ -617,6 +637,58 @@ func (a App) runVersion(args []string) error {
 	}
 	_, _ = fmt.Fprintf(a.out, "agent-init version=%s commit=%s buildDate=%s\n", a.version.Version, a.version.Commit, a.version.BuildDate)
 	return nil
+}
+
+// runUpgrade checks GitHub for a newer release and, unless --check is set,
+// downloads it, verifies its SHA-256 against the release checksums, and replaces
+// the running binary. There is no automatic background check: the user opts in
+// by running this command. A dev build (version=dev) can't be compared to a
+// release, so upgrading one requires --force.
+func (a App) runUpgrade(ctx context.Context, args []string) error {
+	if wantsHelp(args) {
+		cmd, _ := lookupCommand("upgrade")
+		a.printCommandHelp(cmd)
+		return nil
+	}
+	flags := a.newFlagSet("upgrade")
+	check := flags.Bool("check", false, "report whether a newer release exists without installing")
+	dryRun := flags.Bool("dry-run", false, "download and verify but do not replace the binary")
+	force := flags.Bool("force", false, "install even if up to date; required to upgrade a dev build")
+	if err := flags.Parse(args); err != nil {
+		if errors.Is(err, flag.ErrHelp) {
+			return nil
+		}
+		return err
+	}
+	if flags.NArg() != 0 {
+		return fmt.Errorf("usage: agent-init upgrade [--check] [--dry-run] [--force]\nRun 'agent-init upgrade --help' for usage")
+	}
+
+	updater := selfupdate.NewUpdater(selfupdate.NewGitHubSource(upgradeRepo), a.out)
+	current := a.version.Version
+
+	if *check {
+		res, err := updater.Check(ctx, current)
+		if err != nil {
+			return err
+		}
+		if res.NewerAvailable {
+			_, _ = fmt.Fprintf(a.out, "A newer version is available: %s (current %s).\nRun 'agent-init upgrade' to install it.\n", res.Latest, current)
+		} else {
+			_, _ = fmt.Fprintf(a.out, "agent-init is up to date (%s).\n", current)
+		}
+		return nil
+	}
+
+	if current == "dev" && !*force {
+		return fmt.Errorf("refusing to upgrade a dev build (version=dev): a dev build has no release version to compare against; pass --force to install the latest release anyway")
+	}
+
+	return updater.Upgrade(ctx, selfupdate.UpgradeOptions{
+		Current: current,
+		Force:   *force,
+		DryRun:  *dryRun,
+	})
 }
 
 // printHelp renders the top-level overview from the commands table so the

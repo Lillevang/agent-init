@@ -1,6 +1,6 @@
 # CLI
 
-`agent-init` is a small CLI with five subcommands. Source: [internal/cli/cli.go](../internal/cli/cli.go).
+`agent-init` is a small CLI with six subcommands. Source: [internal/cli/cli.go](../internal/cli/cli.go).
 
 ```
 agent-init init [flavor] [target-dir]
@@ -8,6 +8,7 @@ agent-init add-tracker <tracker> <target-dir>
 agent-init list-flavors
 agent-init list-trackers
 agent-init version
+agent-init upgrade [--check] [--dry-run] [--force]
 ```
 
 If no subcommand is given, the binary defaults to `init` with the default flavor. So `agent-init` and `agent-init init` are equivalent.
@@ -130,6 +131,35 @@ agent-init version=v1.2.3 commit=abc123 buildDate=2026-05-14T10:00:00Z
 In dev builds (`go run ./cmd/agent-init version`), prints
 `version=dev commit=dev buildDate=unknown` — the ldflags only apply to release
 builds.
+
+## `upgrade`
+
+Updates `agent-init` in place to the latest GitHub release. There is **no
+automatic background check**: a release is only contacted when you run this
+command, so normal invocations make no network calls.
+
+```bash
+agent-init upgrade           # install the latest release, replacing this binary
+agent-init upgrade --check   # only report whether a newer version exists
+agent-init upgrade --dry-run # download and verify, but do not replace the binary
+```
+
+### Flags
+
+| Flag | Effect |
+|------|--------|
+| `--check` | Report whether a newer release exists and exit, without downloading or installing anything. |
+| `--dry-run` | Download the latest archive and verify its checksum, but stop before replacing the binary. |
+| `--force` | Install the latest release even when the current version is already newest. Also required to upgrade a dev build, which has no release version to compare against. |
+
+### Behavior
+
+- Queries `https://api.github.com/repos/Lillevang/agent-init/releases/latest` and compares the embedded `version` (the release tag, e.g. `v1.2.3`) against the latest tag using semver ordering. If `GITHUB_TOKEN` or `GH_TOKEN` is set, it is sent to lift the anonymous rate limit.
+- Selects the asset matching the running OS/arch (`agent-init-<os>-<arch>.tar.gz`, or `.zip` on Windows), downloads it along with `checksums.txt`, and **verifies the archive's SHA-256 against the published checksum before installing**. A mismatch aborts the upgrade and leaves the existing binary untouched.
+- Replaces the running binary atomically: the new binary is written to a temp file in the same directory, made executable, then renamed over the target (with a move-aside fallback for platforms that can't rename over a running executable). A failure mid-way never leaves a half-written binary in place.
+- Resolves the install location with `os.Executable()` (following symlinks), so it replaces the real binary rather than a symlink to it. If the install directory is not writable (e.g. a root-owned `/usr/local/bin`), the command fails with a hint to re-run with elevated access rather than attempting privilege escalation itself.
+- A dev build (`version=dev`) cannot be compared to a release; `upgrade` refuses unless `--force` is passed, which installs the latest release outright.
+- Source: [internal/selfupdate/selfupdate.go](../internal/selfupdate/selfupdate.go) (verify + replace), [internal/selfupdate/github.go](../internal/selfupdate/github.go) (releases client), [cli.go:runUpgrade](../internal/cli/cli.go). The release asset names this matches are cut by [.github/workflows/release.yml](../.github/workflows/release.yml).
 
 ## Help
 
