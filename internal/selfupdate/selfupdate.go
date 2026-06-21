@@ -20,8 +20,9 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
-	"strconv"
 	"strings"
+
+	"golang.org/x/mod/semver"
 )
 
 // DefaultRepo is the GitHub "owner/name" releases are pulled from.
@@ -341,89 +342,26 @@ func replaceBinary(target string, data []byte) error {
 
 // compareVersions orders two version strings as semver (-1, 0, 1). A version
 // that doesn't parse (e.g. "dev") is treated as older than any real release, so
-// a dev build always sees a release as newer.
+// a dev build always sees a release as newer. Delegates to golang.org/x/mod/semver
+// after normalizing the leading v and filling in missing .MINOR/.PATCH so
+// inputs like "1.2.3" or "v1.0" still compare cleanly.
 func compareVersions(a, b string) int {
-	pa, oka := parseSemver(a)
-	pb, okb := parseSemver(b)
-	switch {
-	case oka && okb:
-		return pa.compare(pb)
-	case oka && !okb:
-		return 1
-	case !oka && okb:
-		return -1
-	default:
-		return strings.Compare(a, b)
-	}
+	return semver.Compare(normalizeVersion(a), normalizeVersion(b))
 }
 
-type semver struct {
-	major, minor, patch int
-	pre                 string
-}
-
-// parseSemver accepts vX, vX.Y, vX.Y.Z (with optional leading v and optional
-// -prerelease / +build suffixes). Anything else fails to parse.
-func parseSemver(s string) (semver, bool) {
+// normalizeVersion makes a best-effort canonical "vMAJOR.MINOR.PATCH" string
+// for input that may omit the leading v or trailing components. An empty
+// return means the input is not a valid semver; semver.Compare then treats it
+// as less than any valid version (per its "invalid < valid" contract).
+func normalizeVersion(s string) string {
 	s = strings.TrimSpace(s)
-	s = strings.TrimPrefix(s, "v")
-	s = strings.TrimPrefix(s, "V")
 	if s == "" {
-		return semver{}, false
+		return ""
 	}
-	if i := strings.IndexByte(s, '+'); i >= 0 {
-		s = s[:i]
+	if s[0] != 'v' && s[0] != 'V' {
+		s = "v" + s
+	} else {
+		s = "v" + s[1:]
 	}
-	pre := ""
-	if i := strings.IndexByte(s, '-'); i >= 0 {
-		pre = s[i+1:]
-		s = s[:i]
-	}
-	parts := strings.Split(s, ".")
-	if len(parts) == 0 || len(parts) > 3 {
-		return semver{}, false
-	}
-	var nums [3]int
-	for i := range parts {
-		n, err := strconv.Atoi(parts[i])
-		if err != nil || n < 0 {
-			return semver{}, false
-		}
-		nums[i] = n
-	}
-	return semver{nums[0], nums[1], nums[2], pre}, true
-}
-
-func (a semver) compare(b semver) int {
-	if c := cmpInt(a.major, b.major); c != 0 {
-		return c
-	}
-	if c := cmpInt(a.minor, b.minor); c != 0 {
-		return c
-	}
-	if c := cmpInt(a.patch, b.patch); c != 0 {
-		return c
-	}
-	// A release outranks a prerelease of the same core version.
-	switch {
-	case a.pre == "" && b.pre == "":
-		return 0
-	case a.pre == "":
-		return 1
-	case b.pre == "":
-		return -1
-	default:
-		return strings.Compare(a.pre, b.pre)
-	}
-}
-
-func cmpInt(a, b int) int {
-	switch {
-	case a < b:
-		return -1
-	case a > b:
-		return 1
-	default:
-		return 0
-	}
+	return semver.Canonical(s)
 }
