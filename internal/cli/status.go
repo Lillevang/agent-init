@@ -6,7 +6,6 @@ import (
 	"io"
 	"os"
 	"path/filepath"
-	"strings"
 
 	"github.com/Lillevang/agent-init/internal/gitconfig"
 	"github.com/Lillevang/agent-init/internal/gitignore"
@@ -25,20 +24,17 @@ func (a App) runStatus(args []string) error {
 		a.printCommandHelp(cmd)
 		return nil
 	}
-	if len(args) > 1 {
+	flags := a.newFlagSet("status")
+	if err := flags.Parse(args); err != nil {
+		return err
+	}
+	rest := flags.Args()
+	if len(rest) > 1 {
 		return fmt.Errorf("usage: agent-init status [target]\nRun 'agent-init status --help' for usage")
 	}
 	target := "."
-	if len(args) == 1 {
-		arg := args[0]
-		// Reject unknown flags loudly. Without this, `status --no-such-flag`
-		// would silently resolve to an absolute path and report `shared`,
-		// hiding the user's typo. The `-` prefix check is sufficient because
-		// status has no positional that could legitimately start with `-`.
-		if strings.HasPrefix(arg, "-") {
-			return fmt.Errorf("unknown flag %q\nUsage: agent-init status [target]\nRun 'agent-init status --help' for usage", arg)
-		}
-		target = arg
+	if len(rest) == 1 {
+		target = rest[0]
 	}
 	absTarget, err := filepath.Abs(target)
 	if err != nil {

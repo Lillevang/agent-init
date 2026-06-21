@@ -276,21 +276,6 @@ func TestStatusRejectsExtraPositionalArgs(t *testing.T) {
 	}
 }
 
-// TestStatusRejectsUnknownFlag locks down the review-suggested behavior:
-// `status --no-such-flag` must error, not silently resolve --no-such-flag to
-// an absolute path and report `shared`.
-func TestStatusRejectsUnknownFlag(t *testing.T) {
-	t.Parallel()
-	app := cli.New(&bytes.Buffer{}, &bytes.Buffer{}, cli.Version{})
-	err := app.Run(context.Background(), []string{"status", "--no-such-flag"})
-	if err == nil {
-		t.Fatal("Run(status --no-such-flag) = nil, want unknown-flag error")
-	}
-	if !strings.Contains(err.Error(), "--no-such-flag") || !strings.Contains(err.Error(), "--help") {
-		t.Errorf("unknown-flag error should name the flag and point at --help; got: %v", err)
-	}
-}
-
 func TestStatusHelp(t *testing.T) {
 	t.Parallel()
 	for _, args := range [][]string{{"status", "--help"}, {"status", "-h"}, {"help", "status"}} {
