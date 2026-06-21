@@ -12,9 +12,9 @@ import (
 )
 
 // maxDownloadBytes caps a single asset download. The release archives are a few
-// MB; this is a generous ceiling that stops a misbehaving or hostile endpoint
-// from streaming unbounded data into memory.
-const maxDownloadBytes = 200 << 20 // 200 MiB
+// MiB; 32 MiB is ~10x the largest plausible archive and stops a misbehaving or
+// hostile endpoint from streaming unbounded data into memory.
+const maxDownloadBytes = 32 << 20 // 32 MiB
 
 // GitHubSource implements Source against the GitHub releases REST API.
 type GitHubSource struct {
