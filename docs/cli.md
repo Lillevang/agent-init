@@ -1,10 +1,11 @@
 # CLI
 
-`agent-init` is a small CLI with five subcommands. Source: [internal/cli/cli.go](../internal/cli/cli.go).
+`agent-init` is a small CLI with six subcommands. Source: [internal/cli/cli.go](../internal/cli/cli.go).
 
 ```
 agent-init init [flavor] [target-dir]
 agent-init add-tracker <tracker> <target-dir>
+agent-init status [target]
 agent-init list-flavors
 agent-init list-trackers
 agent-init version
@@ -87,6 +88,42 @@ There is no `remove-tracker` subcommand yet. Manual cleanup:
 1. Delete `integrations/<tracker>/`.
 2. Remove the entry from `.mcp.json` under `mcpServers`.
 3. Remove the tracker name from `AGENTS.md`'s "Active trackers" line.
+
+## `status`
+
+Reports how the scaffold's agentic envelope is currently tracked by git. Read-only — `status` writes no files and touches no git configuration.
+
+```bash
+agent-init status            # report status of the current directory
+agent-init status ./my-tool  # report status of ./my-tool
+```
+
+The optional positional argument defaults to `.`. The target is resolved to an absolute path before reporting, so the printed paths are unambiguous.
+
+### Output
+
+Each line is `<label>: <value>`. The fields:
+
+| Field | Meaning |
+|-------|---------|
+| `mode` | One of `shared` (no agent-init ignore block found), `local` (block in the committed `.gitignore`), `hidden` (block in `.git/info/exclude`), or `shadowed-by-global` (no repo-local block, but a block exists in your machine-wide git excludes file). |
+| `target` | Absolute path of the directory `status` was run against. |
+| `ignore` | Absolute path of the file carrying the agent-init ignore block. Omitted in `shared` mode. Annotated `(machine-wide)` for `shadowed-by-global`. |
+| `undo` | A portable `sed` invocation that deletes the fenced block from the carrier, plus a fallback instruction for users who would rather edit by hand. The markers come from [internal/gitignore](../internal/gitignore/gitignore.go) (`MarkerStart` / `MarkerEnd`) so they cannot drift from what is on disk. |
+| `note` | Only printed for `shadowed-by-global`. Explains that already-tracked files stay tracked (a global ignore does not retroactively untrack files in the index) and prints the same force-add line `init --visibility=global-default` shows, for repos where the scaffold is being newly added but should be committed openly. |
+
+### Detection precedence
+
+Git's ignore precedence is `.gitignore` > `.git/info/exclude` > `core.excludesfile`, so the block can in principle exist in more than one file at once. `status` reports the most-local (highest-precedence) carrier it finds. `shadowed-by-global` is reported only when neither `.gitignore` nor `.git/info/exclude` carries the block but the machine-wide excludes file does — that is the state where the scaffold is committed openly here yet ignored everywhere else.
+
+The carrier-path helpers come from [internal/gitignore](../internal/gitignore/gitignore.go) (`LocalPath`, `HiddenPath`) and the global-excludes path from [internal/gitconfig](../internal/gitconfig/gitconfig.go) (`GlobalPath`, which is read-only — it never sets `core.excludesfile`). The presence check uses the same managed-block markers the writers do, exposed via `gitignore.HasBlock`.
+
+### Behavior
+
+- Reads at most three files: the target's `.gitignore`, its `.git/info/exclude`, and the machine-wide excludes file. A missing file is not an error — it is the normal `shared` case.
+- Writes nothing. Touches no git configuration. Safe to run in CI or against a repo you do not own.
+- No flags. `--help` and `-h` print the usage as on every subcommand.
+- Source: [internal/cli/status.go](../internal/cli/status.go) (`runStatus`, `detectStatus`, `writeStatusReport`).
 
 ## `list-flavors`
 

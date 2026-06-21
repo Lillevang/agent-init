@@ -76,6 +76,7 @@ go build \
 ```bash
 agent-init init [flavor] [target-dir]
 agent-init add-tracker <tracker> <target-dir>
+agent-init status [target]
 agent-init list-flavors
 agent-init list-trackers
 agent-init version
