@@ -224,17 +224,11 @@ func TestStatusPrefersLocalOverHiddenOverGlobal(t *testing.T) {
 }
 
 func TestStatusDefaultTargetIsCwd(t *testing.T) {
-	// t.Chdir would be cleaner but isn't available across all Go versions we
-	// support; the explicit save/restore is equivalent.
+	// t.Chdir (Go 1.24+) restores cwd on cleanup and refuses t.Parallel, which
+	// is exactly what we want here: many sibling tests resolve filepath.Abs(".")
+	// and would race if this one ran in parallel.
 	target := t.TempDir()
-	prev, err := os.Getwd()
-	if err != nil {
-		t.Fatalf("getwd: %v", err)
-	}
-	if err := os.Chdir(target); err != nil {
-		t.Fatalf("chdir target: %v", err)
-	}
-	t.Cleanup(func() { _ = os.Chdir(prev) })
+	t.Chdir(target)
 
 	var out bytes.Buffer
 	app := cli.New(&out, &bytes.Buffer{}, cli.Version{})
@@ -279,6 +273,21 @@ func TestStatusRejectsExtraPositionalArgs(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "--help") {
 		t.Errorf("usage error should reference --help; got: %v", err)
+	}
+}
+
+// TestStatusRejectsUnknownFlag locks down the review-suggested behavior:
+// `status --no-such-flag` must error, not silently resolve --no-such-flag to
+// an absolute path and report `shared`.
+func TestStatusRejectsUnknownFlag(t *testing.T) {
+	t.Parallel()
+	app := cli.New(&bytes.Buffer{}, &bytes.Buffer{}, cli.Version{})
+	err := app.Run(context.Background(), []string{"status", "--no-such-flag"})
+	if err == nil {
+		t.Fatal("Run(status --no-such-flag) = nil, want unknown-flag error")
+	}
+	if !strings.Contains(err.Error(), "--no-such-flag") || !strings.Contains(err.Error(), "--help") {
+		t.Errorf("unknown-flag error should name the flag and point at --help; got: %v", err)
 	}
 }
 

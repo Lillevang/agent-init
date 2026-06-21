@@ -141,10 +141,11 @@ internal/cli/status_test.go:109:func TestStatusHiddenWhenBlockInGitInfoExclude(t
 internal/cli/status_test.go:146:func TestStatusShadowedByGlobalWhenOnlyGlobalCarriesBlock(t *testing.T) {
 internal/cli/status_test.go:189:func TestStatusPrefersLocalOverHiddenOverGlobal(t *testing.T) {
 internal/cli/status_test.go:226:func TestStatusDefaultTargetIsCwd(t *testing.T) {
-internal/cli/status_test.go:256:func TestStatusExplicitTargetIsResolvedToAbsolutePath(t *testing.T) {
-internal/cli/status_test.go:273:func TestStatusRejectsExtraPositionalArgs(t *testing.T) {
-internal/cli/status_test.go:285:func TestStatusHelp(t *testing.T) {
-internal/cli/status_test.go:308:func TestStatusIgnoresGlobalLookupErrors(t *testing.T) {
+internal/cli/status_test.go:250:func TestStatusExplicitTargetIsResolvedToAbsolutePath(t *testing.T) {
+internal/cli/status_test.go:267:func TestStatusRejectsExtraPositionalArgs(t *testing.T) {
+internal/cli/status_test.go:282:func TestStatusRejectsUnknownFlag(t *testing.T) {
+internal/cli/status_test.go:294:func TestStatusHelp(t *testing.T) {
+internal/cli/status_test.go:317:func TestStatusIgnoresGlobalLookupErrors(t *testing.T) {
 internal/flavors/claudecowork/flavor.go:11:func Templates() embed.FS {
 internal/flavors/claudecowork/flavor.go:18:func ExecutablePaths() []string {
 internal/flavors/claudecowork/flavor.go:25:func NextSteps(target string) string {
@@ -190,12 +191,11 @@ internal/gitignore/gitignore.go:83:func EnsureLocal(target string) (string, erro
 internal/gitignore/gitignore.go:102:func HiddenPath(target string) (string, error) {
 internal/gitignore/gitignore.go:123:func EnsureHidden(target string) (string, error) {
 internal/gitignore/gitignore.go:147:func Upsert(content string) string {
-internal/gitignore/gitignore.go:155:func HasBlock(content string) bool {
 
 ## Stats
 
 ```
-Total tracked files: 350
+Total tracked files: 352
 ```
 
 <!-- HAND-WRITTEN BELOW — EDIT FREELY -->

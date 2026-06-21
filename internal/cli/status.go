@@ -6,6 +6,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/Lillevang/agent-init/internal/gitconfig"
 	"github.com/Lillevang/agent-init/internal/gitignore"
@@ -29,7 +30,15 @@ func (a App) runStatus(args []string) error {
 	}
 	target := "."
 	if len(args) == 1 {
-		target = args[0]
+		arg := args[0]
+		// Reject unknown flags loudly. Without this, `status --no-such-flag`
+		// would silently resolve to an absolute path and report `shared`,
+		// hiding the user's typo. The `-` prefix check is sufficient because
+		// status has no positional that could legitimately start with `-`.
+		if strings.HasPrefix(arg, "-") {
+			return fmt.Errorf("unknown flag %q\nUsage: agent-init status [target]\nRun 'agent-init status --help' for usage", arg)
+		}
+		target = arg
 	}
 	absTarget, err := filepath.Abs(target)
 	if err != nil {
@@ -81,6 +90,11 @@ func (a App) reportStatus(absTarget string, runner gitconfig.Runner, env gitconf
 // and returns the most-local hit. When no repo-local block is found but a
 // block sits in the machine-wide excludes, the finding is `shadowed-by-global`
 // rather than `shared`, matching the issue-60 spec.
+//
+// Length: slightly over the ~40-line house guideline because it is a linear
+// three-step pipeline (local → hidden → global) with identical structure per
+// step; factoring it would scatter the precedence rule across helpers, making
+// the order harder to audit. Kept inline deliberately.
 func detectStatus(absTarget string, runner gitconfig.Runner, env gitconfig.Env) (statusFinding, error) {
 	finding := statusFinding{target: absTarget, mode: statusModeShared}
 
@@ -161,13 +175,14 @@ func writeStatusReport(w io.Writer, f statusFinding) {
 	}
 	_, _ = fmt.Fprintf(w, "undo:   sed -i.bak '/%s/,/%s/d' %s\n",
 		gitignore.MarkerStart, gitignore.MarkerEnd, f.carrier)
+	_, _ = fmt.Fprintf(w, "        (-i.bak leaves %s.bak as a one-shot backup; delete it after verifying)\n", f.carrier)
 	_, _ = fmt.Fprintf(w, "        (or open %s and delete the lines from\n", f.carrier)
 	_, _ = fmt.Fprintf(w, "        '%s' through '%s' inclusive)\n",
 		gitignore.MarkerStart, gitignore.MarkerEnd)
 	if f.mode == statusModeShadowed {
-		_, _ = fmt.Fprintln(w, "note:   The scaffold may still be tracked in this repo: git ignores rules")
-		_, _ = fmt.Fprintln(w, "        for files that are already in the index. To stop tracking the scaffold")
-		_, _ = fmt.Fprintln(w, "        in this repo, remove it from the index (git rm --cached ...). To commit")
+		_, _ = fmt.Fprintln(w, "note:   git does not apply ignore rules to files that are already in the")
+		_, _ = fmt.Fprintln(w, "        index, so the scaffold may still be tracked in this repo. To stop")
+		_, _ = fmt.Fprintln(w, "        tracking it, remove it from the index (git rm --cached ...). To commit")
 		_, _ = fmt.Fprintln(w, "        the scaffold openly in a repo where it is newly being added, force-add it:")
 		_, _ = fmt.Fprintln(w, "          git add -f .agent AGENTS.md CLAUDE.md .devcontainer Justfile .pre-commit-config.yaml")
 	}

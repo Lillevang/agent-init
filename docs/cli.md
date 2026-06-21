@@ -120,8 +120,9 @@ The carrier-path helpers come from [internal/gitignore](../internal/gitignore/gi
 
 ### Behavior
 
-- Reads at most three files: the target's `.gitignore`, its `.git/info/exclude`, and the machine-wide excludes file. A missing file is not an error — it is the normal `shared` case.
-- Writes nothing. Touches no git configuration. Safe to run in CI or against a repo you do not own.
+- Reads at most three files: the target's `.gitignore`, its `.git/info/exclude`, and the machine-wide excludes file. May invoke `git config --global --get core.excludesfile` to locate the machine-wide file. A missing file is not an error — it is the normal `shared` case.
+- Writes nothing. Never sets a git config key. Safe to run in CI or against a repo you do not own.
+- Detection is marker-based, not effective-behavior. `status` looks for the managed fenced block; it does not evaluate the surrounding `.gitignore`. A user who adds a manual `!.agent/` rule below the block to opt back in still gets `mode: local`/`hidden`/`shadowed-by-global`.
 - No flags. `--help` and `-h` print the usage as on every subcommand.
 - Source: [internal/cli/status.go](../internal/cli/status.go) (`runStatus`, `detectStatus`, `writeStatusReport`).
 
