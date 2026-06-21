@@ -66,6 +66,7 @@ The binary's interface is the product. Keep it small and stable.
 - `agent-init list-flavors` — print available flavors with descriptions.
 - `agent-init list-trackers` — print available trackers with descriptions.
 - `agent-init version` — print version info (commit + build date, embedded via `-ldflags`).
+- `agent-init upgrade [--check] [--dry-run] [--force]` — update the binary in place from the latest GitHub release. Verifies SHA-256 against the published `checksums.txt` and fails closed on mismatch. See [`docs/cli.md`](../docs/cli.md#upgrade).
 
 ### Releases
 
