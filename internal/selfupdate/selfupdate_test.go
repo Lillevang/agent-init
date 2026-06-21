@@ -339,6 +339,37 @@ func TestUpgradeMissingChecksums(t *testing.T) {
 	}
 }
 
+// TestUpgradeReplaceBinaryFallback exercises replaceBinary's move-aside
+// fallback path: when os.Rename(tmp, target) fails (here forced by making
+// target a directory, the cross-platform proxy for Windows' "can't rename over
+// a running executable"), the fallback renames target out of the way and
+// installs the new binary. The Windows production case is symmetric.
+func TestUpgradeReplaceBinaryFallback(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	target := filepath.Join(dir, "agent-init")
+	// Make the target an (empty) directory so the primary os.Rename(file, dir)
+	// fails with EISDIR on POSIX, driving the fallback path.
+	if err := os.Mkdir(target, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	newBin := []byte("BRAND NEW BINARY")
+	src := buildRelease(t, "v2.0.0", newBin)
+	var out bytes.Buffer
+	u := newTestUpdater(src, &out, target)
+
+	if err := u.Upgrade(context.Background(), UpgradeOptions{Current: "v1.0.0"}); err != nil {
+		t.Fatalf("Upgrade(fallback) error = %v", err)
+	}
+	got, err := os.ReadFile(target)
+	if err != nil {
+		t.Fatalf("reading installed binary: %v", err)
+	}
+	if !bytes.Equal(got, newBin) {
+		t.Errorf("binary after fallback = %q, want %q", got, newBin)
+	}
+}
+
 // TestExtractBinaryRejectsOversizedEntry asserts that an archive entry whose
 // uncompressed payload exceeds maxBinaryBytes errors out instead of being
 // allocated wholesale — the defense-in-depth check against a gzip/zip-bomb
