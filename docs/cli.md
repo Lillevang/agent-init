@@ -154,11 +154,10 @@ agent-init upgrade --dry-run # download and verify, but do not replace the binar
 
 ### Behavior
 
-- Queries `https://api.github.com/repos/Lillevang/agent-init/releases/latest` and compares the embedded `version` (the release tag, e.g. `v1.2.3`) against the latest tag using semver ordering. If `GITHUB_TOKEN` or `GH_TOKEN` is set, it is sent to lift the anonymous rate limit.
-- Selects the asset matching the running OS/arch (`agent-init-<os>-<arch>.tar.gz`, or `.zip` on Windows), downloads it along with `checksums.txt`, and **verifies the archive's SHA-256 against the published checksum before installing**. A mismatch aborts the upgrade and leaves the existing binary untouched.
-- Replaces the running binary atomically: the new binary is written to a temp file in the same directory, made executable, then renamed over the target (with a move-aside fallback for platforms that can't rename over a running executable). A failure mid-way never leaves a half-written binary in place.
-- Resolves the install location with `os.Executable()` (following symlinks), so it replaces the real binary rather than a symlink to it. If the install directory is not writable (e.g. a root-owned `/usr/local/bin`), the command fails with a hint to re-run with elevated access rather than attempting privilege escalation itself.
-- A dev build (`version=dev`) cannot be compared to a release; `upgrade` refuses unless `--force` is passed, which installs the latest release outright.
+- Makes a network call to GitHub's releases API and downloads the OS/arch-specific asset plus `checksums.txt`. Honors `GITHUB_TOKEN` / `GH_TOKEN` to lift the anonymous rate limit.
+- Verifies the archive's SHA-256 against the published checksum and swaps the binary in place. **Fails closed on checksum mismatch** — the existing binary is left untouched.
+- Requires write permission on the binary's install directory. A root-owned install path (e.g. `/usr/local/bin`) cannot be upgraded without elevated access; `upgrade` reports the error rather than escalating itself.
+- A dev build (`version=dev`) cannot be compared to a release; `upgrade` refuses unless `--force` is passed.
 - Source: [internal/selfupdate/selfupdate.go](../internal/selfupdate/selfupdate.go) (verify + replace), [internal/selfupdate/github.go](../internal/selfupdate/github.go) (releases client), [cli.go:runUpgrade](../internal/cli/cli.go). The release asset names this matches are cut by [.github/workflows/release.yml](../.github/workflows/release.yml).
 
 ## Help
