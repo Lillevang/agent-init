@@ -27,6 +27,11 @@ import (
 // DefaultRepo is the GitHub "owner/name" releases are pulled from.
 const DefaultRepo = "Lillevang/agent-init"
 
+// maxBinaryBytes caps each archive-entry read so a release-pipeline-compromise
+// scenario (gzip/zip bomb) cannot OOM/disk-DoS the upgrading user. The shipped
+// binary is single-digit MiB; 64 MiB is ~10x headroom for plausible growth.
+const maxBinaryBytes = 64 << 20 // 64 MiB
+
 // Release is the subset of a GitHub release this package consumes.
 type Release struct {
 	Tag    string
@@ -255,7 +260,7 @@ func extractFromTarGz(archive []byte, binName string) ([]byte, error) {
 			return nil, fmt.Errorf("reading tar: %w", err)
 		}
 		if filepath.Base(hdr.Name) == binName {
-			return io.ReadAll(tr)
+			return readCapped(tr, binName)
 		}
 	}
 	return nil, fmt.Errorf("%s not found in archive", binName)
@@ -273,10 +278,24 @@ func extractFromZip(archive []byte, binName string) ([]byte, error) {
 				return nil, fmt.Errorf("opening %s in zip: %w", binName, err)
 			}
 			defer func() { _ = rc.Close() }()
-			return io.ReadAll(rc)
+			return readCapped(rc, binName)
 		}
 	}
 	return nil, fmt.Errorf("%s not found in archive", binName)
+}
+
+// readCapped reads up to maxBinaryBytes from r. If the entry is larger it
+// returns an explicit error instead of silently truncating, so a gzip/zip-bomb
+// release archive can't slip past extraction as a partial binary.
+func readCapped(r io.Reader, name string) ([]byte, error) {
+	data, err := io.ReadAll(io.LimitReader(r, maxBinaryBytes+1))
+	if err != nil {
+		return nil, err
+	}
+	if len(data) > maxBinaryBytes {
+		return nil, fmt.Errorf("%s exceeds %d bytes uncompressed; refusing to extract", name, maxBinaryBytes)
+	}
+	return data, nil
 }
 
 // replaceBinary installs data at target atomically. It writes a temp file in the

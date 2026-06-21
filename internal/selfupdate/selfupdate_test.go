@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -336,6 +337,31 @@ func TestUpgradeMissingChecksums(t *testing.T) {
 
 	if err := u.Upgrade(context.Background(), UpgradeOptions{Current: "v1.0.0"}); err == nil {
 		t.Fatal("Upgrade(no checksums.txt) = nil, want error")
+	}
+}
+
+// TestExtractBinaryRejectsOversizedEntry asserts that an archive entry whose
+// uncompressed payload exceeds maxBinaryBytes errors out instead of being
+// allocated wholesale — the defense-in-depth check against a gzip/zip-bomb
+// release archive.
+func TestExtractBinaryRejectsOversizedEntry(t *testing.T) {
+	t.Parallel()
+	// One byte over the cap; the bytes themselves are zeros so the gzip/zip
+	// blob stays tiny (highly compressible) and the test stays fast.
+	oversized := bytes.Repeat([]byte{0}, maxBinaryBytes+1)
+
+	gz := makeTarGz(t, "agent-init-linux-amd64", oversized)
+	if _, err := extractBinary(gz, "agent-init-linux-amd64.tar.gz", "agent-init-linux-amd64"); err == nil {
+		t.Error("extractBinary(oversized tar.gz) = nil, want error")
+	} else if !strings.Contains(err.Error(), "exceeds") {
+		t.Errorf("extractBinary(oversized tar.gz) error = %v, want exceeds-bytes error", err)
+	}
+
+	z := makeZip(t, "agent-init-windows-amd64.exe", oversized)
+	if _, err := extractBinary(z, "agent-init-windows-amd64.zip", "agent-init-windows-amd64.exe"); err == nil {
+		t.Error("extractBinary(oversized zip) = nil, want error")
+	} else if !strings.Contains(err.Error(), "exceeds") {
+		t.Errorf("extractBinary(oversized zip) error = %v, want exceeds-bytes error", err)
 	}
 }
 
