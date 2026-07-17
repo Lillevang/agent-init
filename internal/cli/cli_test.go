@@ -710,7 +710,7 @@ func TestTopLevelHelpListsAllSubcommands(t *testing.T) {
 				t.Fatalf("Run(%v) error = %v; help must exit 0", trigger, err)
 			}
 			got := out.String()
-			for _, sub := range []string{"init", "add-tracker", "list-flavors", "list-trackers", "version"} {
+			for _, sub := range []string{"init", "add-tracker", "status", "list-flavors", "list-trackers", "version"} {
 				if !strings.Contains(got, sub) {
 					t.Errorf("top-level help missing subcommand %q:\n%s", sub, got)
 				}
@@ -768,7 +768,7 @@ func TestSubcommandHelpPrintsFlagsAndExamples(t *testing.T) {
 
 func TestFlaglessSubcommandHelp(t *testing.T) {
 	t.Parallel()
-	for _, name := range []string{"list-flavors", "list-trackers", "version"} {
+	for _, name := range []string{"status", "list-flavors", "list-trackers", "version"} {
 		name := name
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()

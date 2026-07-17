@@ -124,6 +124,15 @@ var commands = []commandHelp{
 		},
 	},
 	{
+		name:    "status",
+		summary: "report how the scaffold is tracked (read-only)",
+		usage:   "agent-init status [target]",
+		examples: []string{
+			"agent-init status            # report status of the current directory",
+			"agent-init status ./my-tool  # report status of ./my-tool",
+		},
+	},
+	{
 		name:    "list-flavors",
 		summary: "print available flavors with descriptions",
 		usage:   "agent-init list-flavors",
@@ -188,6 +197,8 @@ func (a App) Run(ctx context.Context, args []string) error {
 		return a.runAddTracker(ctx, args[1:])
 	case "version":
 		return a.runVersion(args[1:])
+	case "status":
+		return a.runStatus(args[1:])
 	case "help":
 		// `help <subcommand>` prints that subcommand's help; bare help is
 		// the top-level overview. (`-h` / `--help` are caught earlier.)

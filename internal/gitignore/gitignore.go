@@ -24,6 +24,14 @@ const (
 	// it in place. The "(private)" tag is part of the agreed block content.
 	blockStart = "# >>> agent-init (private) >>>"
 	blockEnd   = "# <<< agent-init <<<"
+
+	// MarkerStart and MarkerEnd are the exported names of the same markers,
+	// surfaced for callers that need to display them (e.g. the `status`
+	// subcommand prints them in the undo hint) without duplicating the literal
+	// strings. They alias the package-private constants intentionally — the
+	// markers are part of the file format and must not drift.
+	MarkerStart = blockStart
+	MarkerEnd   = blockEnd
 )
 
 // envelope is the set of scaffold paths the ignore block covers: the agentic
@@ -138,6 +146,15 @@ func EnsureHidden(target string) (string, error) {
 // content and idempotency rules rather than re-implementing them.
 func Upsert(content string) string {
 	return upsertBlock(content)
+}
+
+// HasBlock reports whether content contains the fenced managed block, matched
+// by the start and end markers (start before end). It is a read-only detector
+// used by the `status` subcommand, which must reuse the marker constants
+// rather than open-coding them.
+func HasBlock(content string) bool {
+	_, _, ok := findBlock(content)
+	return ok
 }
 
 // upsertBlock returns content with the managed block present exactly once. An
