@@ -51,6 +51,10 @@ fi
 # Using grep + sort keeps output deterministic across filesystems / CI runners.
 # (We tried ripgrep first; its directory-walk order varies between rg versions
 # and gitignore parsing differs subtly between environments.)
+#
+# Test files are excluded from the surface: their functions (Go `TestXxx`,
+# `test_*.py`, `*.test.ts`) are not public API, and their bulk can push real
+# exported symbols past the per-language cap and silently drop them.
 GREP_EXCLUDES=(
     --exclude-dir=.git
     --exclude-dir=node_modules
@@ -75,7 +79,7 @@ api_surface() {
     fi
     if compgen -G "**/*.go" > /dev/null 2>&1; then
         echo "### Go"
-        grep -rEn --include='*.go' "${GREP_EXCLUDES[@]}" '^func [A-Z]|^type [A-Z]' . 2>/dev/null \
+        grep -rEn --include='*.go' --exclude='*_test.go' "${GREP_EXCLUDES[@]}" '^func [A-Z]|^type [A-Z]' . 2>/dev/null \
             | sed 's|^\./||' \
             | sort -t: -k1,1 -k2,2n \
             | head -100 || true
@@ -83,7 +87,7 @@ api_surface() {
     fi
     if compgen -G "**/*.ts" > /dev/null 2>&1 || compgen -G "**/*.tsx" > /dev/null 2>&1; then
         echo "### TypeScript"
-        grep -rEn --include='*.ts' --include='*.tsx' "${GREP_EXCLUDES[@]}" '^export (function|class|interface|type|const|enum) ' . 2>/dev/null \
+        grep -rEn --include='*.ts' --include='*.tsx' --exclude='*.test.ts' --exclude='*.spec.ts' --exclude='*.test.tsx' --exclude='*.spec.tsx' "${GREP_EXCLUDES[@]}" '^export (function|class|interface|type|const|enum) ' . 2>/dev/null \
             | sed 's|^\./||' \
             | sort -t: -k1,1 -k2,2n \
             | head -100 || true
@@ -91,7 +95,7 @@ api_surface() {
     fi
     if compgen -G "**/*.py" > /dev/null 2>&1; then
         echo "### Python"
-        grep -rEn --include='*.py' "${GREP_EXCLUDES[@]}" '^(class |def )[A-Za-z_]' . 2>/dev/null \
+        grep -rEn --include='*.py' --exclude='test_*.py' --exclude='*_test.py' "${GREP_EXCLUDES[@]}" '^(class |def )[A-Za-z_]' . 2>/dev/null \
             | grep -v '^.*:def _' \
             | sed 's|^\./||' \
             | sort -t: -k1,1 -k2,2n \

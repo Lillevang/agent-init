@@ -47,7 +47,10 @@ else
     TREE_CMD="find . -maxdepth 3 -type d -not -path '*/\.*' -not -path '*/node_modules*' -not -path '*/target*' -not -path '*/dist*' -not -path '*/clients*'"
 fi
 
-# Detect a few common API-surface signals; this is intentionally rough
+# Detect a few common API-surface signals; this is intentionally rough.
+# Test files are excluded: their functions (Go `TestXxx`, `test_*.py`,
+# `*.test.ts`) are not public API, and their bulk can push real exported
+# symbols past the per-language cap and silently drop them.
 api_surface() {
     local found=0
     # `sort` before `head` keeps the output stable: ripgrep's parallel
@@ -65,19 +68,19 @@ api_surface() {
     fi
     if compgen -G "**/*.go" > /dev/null 2>&1; then
         echo "### Go"
-        rg --no-heading -n '^func [A-Z]|^type [A-Z]' --type go 2>/dev/null \
+        rg --no-heading -n -g '!*_test.go' '^func [A-Z]|^type [A-Z]' --type go 2>/dev/null \
             | sort -t: -k1,1 -k2,2n | head -100 || true
         found=1
     fi
     if compgen -G "**/*.ts" > /dev/null 2>&1 || compgen -G "**/*.tsx" > /dev/null 2>&1; then
         echo "### TypeScript"
-        rg --no-heading -n '^export (function|class|interface|type|const|enum) ' --type ts 2>/dev/null \
+        rg --no-heading -n -g '!*.test.ts' -g '!*.spec.ts' -g '!*.test.tsx' -g '!*.spec.tsx' '^export (function|class|interface|type|const|enum) ' --type ts 2>/dev/null \
             | sort -t: -k1,1 -k2,2n | head -100 || true
         found=1
     fi
     if compgen -G "**/*.py" > /dev/null 2>&1; then
         echo "### Python"
-        rg --no-heading -n '^(class |def )[A-Za-z_]' --type py 2>/dev/null \
+        rg --no-heading -n -g '!test_*.py' -g '!*_test.py' '^(class |def )[A-Za-z_]' --type py 2>/dev/null \
             | grep -v '^.*:def _' \
             | sort -t: -k1,1 -k2,2n | head -100 || true
         found=1
