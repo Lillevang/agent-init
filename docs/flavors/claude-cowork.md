@@ -50,7 +50,7 @@ The post-scaffold message ([flavor.go:25-43](../../internal/flavors/claudecowork
 
 These differences are flavor-controlled, not engine-hardcoded. The relevant engine hooks:
 
-- **Symlinks** are declarative via `Flavor.Symlinks` ([flavor.go:25](../../internal/flavors/flavor.go#L25); type definition at [flavor.go:37-40](../../internal/flavors/flavor.go#L37-L40)); claude-cowork sets it to nil.
+- **Symlinks** are declarative via `Flavor.Symlinks` ([flavor.go:25](../../internal/flavors/flavor.go#L25); type definition at [flavor.go:55-58](../../internal/flavors/flavor.go#L55-L58)); claude-cowork sets it to nil.
 - **Next-steps message** is a per-flavor `NextSteps func(target string) string` hook ([flavor.go:26-30](../../internal/flavors/flavor.go#L26-L30)); claude-cowork supplies its own.
 - **`CommonTemplates`** is optional; flavors that don't set it skip the overlay.
 

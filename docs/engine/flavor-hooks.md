@@ -6,9 +6,9 @@ Per-flavor customization points on the `Flavor` struct that let one engine suppo
 
 | Field on `Flavor` | Type | Default when nil/empty | Source |
 |---|---|---|---|
-| `Symlinks` | `[]Symlink` | No symlinks created | [flavor.go:37-40](../../internal/flavors/flavor.go#L37-L40) |
+| `Symlinks` | `[]Symlink` | No symlinks created | [flavor.go:25](../../internal/flavors/flavor.go#L25) (field); [flavor.go:55-58](../../internal/flavors/flavor.go#L55-L58) (type) |
 | `NextSteps` | `func(target string) string` | Default code-project message (devcontainer + just check) | [flavor.go:30](../../internal/flavors/flavor.go#L30) |
-| `CommonTemplates` | `fs.FS` | No common-overlay layer walked | [flavor.go:18-19](../../internal/flavors/flavor.go#L18-L19) |
+| `CommonTemplates` | `fs.FS` | No common-overlay layer walked | [flavor.go:22](../../internal/flavors/flavor.go#L22) |
 
 ## Symlinks
 
@@ -19,9 +19,9 @@ type Symlink struct {
 }
 ```
 
-`createSymlinks` ([scaffold.go:209](../../internal/scaffold/scaffold.go#L209)) iterates `opts.Flavor.Symlinks` and creates each in order. `Target` is written verbatim — relative-path conventions like `.agent/AGENTS.md` survive into the scaffolded tree. The engine creates parent directories as needed but won't replace existing directories with symlinks (returns an error instead).
+`createSymlinks` ([scaffold.go:335](../../internal/scaffold/scaffold.go#L335)) iterates `opts.Flavor.Symlinks` and creates each in order. `Target` is written verbatim — relative-path conventions like `.agent/AGENTS.md` survive into the scaffolded tree. The engine creates parent directories as needed but won't replace existing directories with symlinks (returns an error instead).
 
-**Code-flavor convention.** All three code flavors share `codeFlavorSymlinks()` in [registry.go:70-76](../../internal/flavors/registry.go#L70-L76):
+**Code-flavor convention.** All four code flavors (`fullstack`, `go-cli`, `go-backend`, `iac`) share `codeFlavorSymlinks()` in [registry.go:145-151](../../internal/flavors/registry.go#L145-L151):
 
 ```go
 {Path: "AGENTS.md", Target: ".agent/AGENTS.md"},
@@ -39,7 +39,7 @@ Four entry points (root `AGENTS.md`, root `CLAUDE.md`, `.agent/AGENTS.md`, `.age
 NextSteps func(target string) string
 ```
 
-If set, the engine calls `flavor.NextSteps(target)` after writing and prints the returned string verbatim ([scaffold.go:272-289](../../internal/scaffold/scaffold.go#L272-L289)). If nil, the engine prints its default code-project message — devcontainer up, devcontainer exec, just check.
+If set, the engine calls `flavor.NextSteps(target)` after writing and prints the returned string verbatim (`printNextSteps`, [scaffold.go:470](../../internal/scaffold/scaffold.go#L470)). If nil, the engine prints its default code-project message — devcontainer up, devcontainer exec, just check.
 
 The signature takes the scaffold target so flavors can interpolate paths into shell commands the user is about to copy:
 

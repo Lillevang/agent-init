@@ -23,37 +23,32 @@ docs/
 ├── cli.md                      # subcommands + flags (DONE)
 ├── engine/
 │   ├── flavor-hooks.md         # Symlinks, NextSteps, CommonTemplates (DONE)
-│   ├── templates.md            # .tmpl content substitution
-│   ├── path-templating.md
-│   ├── common-overlay.md
-│   ├── done-gate.md
-│   └── releases.md            # tag-driven release flow (DONE)
+│   ├── releases.md             # tag-driven release flow (DONE)
+│   ├── templates.md            # .tmpl content substitution (TODO)
+│   ├── path-templating.md      # {{.ProjectName}} in file paths (TODO)
+│   ├── common-overlay.md       # common/ fallback layer (TODO)
+│   └── done-gate.md            # what check.sh runs downstream (TODO)
 └── flavors/
+    ├── fullstack.md            # (DONE)
+    ├── go-cli.md               # (DONE — worked --agents-only example)
+    ├── go-backend.md           # (DONE)
+    ├── iac.md                  # (DONE — Terraform + Ansible)
     ├── claude-cowork.md        # (DONE)
-    ├── project-management.md   # (DONE — with worked examples)
-    ├── fullstack.md
-    ├── go-cli.md
-    └── go-backend.md
+    └── project-management.md   # (DONE — worked skill examples)
 ```
 
-Not all of these exist yet. The backlog below lists what's needed.
+Every flavor and subcommand is documented. The four engine docs marked `TODO` are the remaining gap; the backlog below tracks them.
 
 ## Backlog
 
-Features that exist in the code but don't yet have a doc entry. The next agent to touch one of these is on the hook to write its doc.
+Features that exist in the code but don't yet have a doc entry. The next agent to touch one of these is on the hook to write its doc. Every flavor is documented; the remaining gap is four engine-capability docs.
 
 ### Engine
 
-- [ ] `engine/templates.md` — `.tmpl` opt-in for content substitution. Source: [internal/scaffold/scaffold.go:155-167](../internal/scaffold/scaffold.go#L155-L167).
-- [ ] `engine/path-templating.md` — `{{.ProjectName}}` in file paths; the `.tmpl` workaround for `cmd/{{.ProjectName}}/` directories. Source: [internal/scaffold/scaffold.go:169-182](../internal/scaffold/scaffold.go#L169-L182).
-- [ ] `engine/common-overlay.md` — `internal/flavors/common/` as a fallback layer; flavor-first conflict resolution. Source: [internal/flavors/common/flavor.go](../internal/flavors/common/flavor.go), [internal/scaffold/scaffold.go:80-114](../internal/scaffold/scaffold.go#L80-L114).
+- [ ] `engine/templates.md` — `.tmpl` opt-in for content substitution. Source: [scaffold.go:306-318](../internal/scaffold/scaffold.go#L306-L318) (content render) and the `.tmpl` strip in [walkLayer, scaffold.go:163](../internal/scaffold/scaffold.go#L163).
+- [ ] `engine/path-templating.md` — `{{.ProjectName}}` in file paths; the `.tmpl` workaround for `cmd/{{.ProjectName}}/` directories. Source: [renderPath, scaffold.go:320](../internal/scaffold/scaffold.go#L320).
+- [ ] `engine/common-overlay.md` — `internal/flavors/common/` as a fallback layer; flavor-first conflict resolution. Source: [Overlay, scaffold.go:102](../internal/scaffold/scaffold.go#L102) and [walkLayer, scaffold.go:163](../internal/scaffold/scaffold.go#L163).
 - [ ] `engine/done-gate.md` — what `check.sh` runs in scaffolded projects and how `maybe_step` skips missing recipes. Source: [internal/flavors/common/templates/.agent/scripts/check.sh](../internal/flavors/common/templates/.agent/scripts/check.sh).
-
-### Flavors
-
-- [x] `flavors/fullstack.md` — TypeScript/Node frontend + backend; supports `--agents-only`.
-- [x] `flavors/go-cli.md` — fresh-project Go CLI scaffold + `--agents-only` mode for existing projects.
-- [x] `flavors/go-backend.md` — Go HTTP backend scaffold + `--agents-only` mode.
 
 ## Style
 

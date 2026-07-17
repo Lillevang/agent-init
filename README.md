@@ -1,39 +1,28 @@
 # agent-init
 
-`agent-init` adds an agentic development workflow to a Go, TypeScript, or Infrastructure-as-Code project — primarily by enhancing one you already have, optionally by bootstrapping a new repo from scratch.
+`agent-init` sets a repository up for sandboxed agentic development. It drops in a devcontainer, an `AGENTS.md`/`CLAUDE.md` house-rules pair, a `check.sh` "done-gate", a `Justfile`, pre-commit hooks, and a codebase map — all tuned to a chosen project flavor.
 
-It also supports project management workspaces, by bootstrapping agents and folder structures as well as MCP integrations for Azure DevOps, Jira or GitHub.
+The primary use is **adding this envelope to a project you already have**; it can also bootstrap a fresh repo from scratch. Beyond code, it scaffolds two non-code workspaces: a **project-management** workspace (epics, decisions, stakeholders, plus MCP tracker integrations for Jira, Azure DevOps, or GitHub) and a **Claude Cowork** folder for document-centred analysis and design work.
 
-In addition you can bootstrap a workspace for claude cowork, useful for projects centered around documents, analysis and design rather than implementation.
+## Quickstart
 
-## Documentation
+```bash
+# Add the agentic envelope to an existing Go CLI — none of your source is touched.
+agent-init init go-cli --agents-only ~/repos/my-cli
 
-This README is the front door. The full reference lives under [`docs/`](./docs/):
+# Or scaffold a brand-new project from a flavor.
+agent-init init go-cli ./my-new-tool
 
-- [`docs/README.md`](./docs/README.md) — the docs index and per-feature documentation convention.
-- [`docs/cli.md`](./docs/cli.md) — full CLI reference: every subcommand, flag, and exit behavior.
-- [`docs/engine/flavor-hooks.md`](./docs/engine/flavor-hooks.md) — the per-flavor engine hooks (`Symlinks`, `NextSteps`, `CommonTemplates`) that let one engine serve code and non-code flavors.
-
-One page per flavor:
-
-- [`docs/flavors/fullstack.md`](./docs/flavors/fullstack.md) — TypeScript/Node frontend + backend, Playwright recording, OpenAPI clients.
-- [`docs/flavors/go-cli.md`](./docs/flavors/go-cli.md) — Go command-line tool; includes a worked `--agents-only` example.
-- [`docs/flavors/go-backend.md`](./docs/flavors/go-backend.md) — Go HTTP backend with `/healthz`.
-- [`docs/flavors/iac.md`](./docs/flavors/iac.md) — combined Terraform + Ansible scaffold.
-- [`docs/flavors/claude-cowork.md`](./docs/flavors/claude-cowork.md) — OneDrive-backed document-collaboration workspace.
-- [`docs/flavors/project-management.md`](./docs/flavors/project-management.md) — project-management workspace; ships five skills and tracker integrations.
+# See every flavor, or drill into any command.
+agent-init list-flavors
+agent-init --help
+```
 
 ## What it's for
 
-The primary use case is **adding agents to existing projects**. Most code already exists. Run:
+Adding agents to a project you already have is the main path, and the scaffold is careful about it. `--agents-only` drops in just the envelope — devcontainer, `AGENTS.md`/`CLAUDE.md` house rules, helper scripts, `Justfile`, pre-commit hooks — **without touching** your `go.mod`, `package.json`, `main.go`, or any existing source. Omit the flag and you also get the flavor's full fresh-project layout, useful when you're starting from zero.
 
-```bash
-agent-init init <flavor> --agents-only ./your-existing-repo
-```
-
-…and the scaffold drops in just the agentic envelope — a devcontainer, an `AGENTS.md`/`CLAUDE.md` pair (the agent's house rules), helper scripts, a `Justfile`, and pre-commit hooks — **without touching** your `go.mod`, `package.json`, `main.go`, or any existing source. The "fresh project" mode (omit `--agents-only`) is supported and useful when you genuinely are starting from zero, but it's the secondary path.
-
-Two things this is trying to enforce:
+Two things the envelope is built to enforce:
 
 - **Sandbox the agent.** The devcontainer is the work surface. Agents run inside it with a bounded toolchain (Go, Node, lint, security scanners — whatever the chosen flavor needs) and write only into the mounted workspace. Credentials, host SSH keys, and cloud configs are explicit opt-in mounts — commented out in `devcontainer.json` by default so the agent doesn't pick them up unless you choose to share them.
 - **Force agents to verify.** Every scaffolded project ships a `check.sh` "done-gate" that runs codemap regeneration, formatting, linting, type-checking, tests, and (per flavor) cross-builds, vulnerability scans, or security scans. The agent's contract — encoded in the generated `AGENTS.md` — is: don't declare a task complete until `./.agent/scripts/check.sh` passes. This is the simplest mechanism we've found that stops agents from cutting work short with "I think it's done."
@@ -48,6 +37,17 @@ Two things this is trying to enforce:
 | [`claude-cowork`](./docs/flavors/claude-cowork.md) | OneDrive-backed document collaboration folder for Claude Cowork. No devcontainer / Justfile / symlinks; root-level `AGENTS.md` + `decisions.md` + `corrections.md` + `reference/`, `templates/`, `archive/`. |
 | [`project-management`](./docs/flavors/project-management.md) | Project-management workspace (epics, meetings, decisions, stakeholders, time plans). Ships five skills (`/intake-meeting`, `/break-down-epic`, `/log-decision`, `/track-stakeholder`, `/sync-tracker`) and supports MCP tracker integrations via `agent-init add-tracker {jira\|ado\|gh}`. |
 | [`iac`](./docs/flavors/iac.md) | Combined Terraform + Ansible scaffold. Ships `terraform/` (root module, `modules/`) and `ansible/` (`inventory/`, `playbooks/`, `roles/`) trees, a devcontainer with `terraform` + `tflint` + `tfsec` + `trivy` + `ansible-core` + `ansible-lint` + `yamllint`, and a Justfile whose recipes auto-detect which toolchain is present. Cloud-credential and `~/.ssh` mounts are commented out by default with a warning. |
+
+## Documentation
+
+This README is the front door. The full reference lives under [`docs/`](./docs/):
+
+- [`docs/cli.md`](./docs/cli.md) — full CLI reference: every subcommand, flag, and exit behavior.
+- [`docs/engine/flavor-hooks.md`](./docs/engine/flavor-hooks.md) — the per-flavor engine hooks (`Symlinks`, `NextSteps`, `CommonTemplates`) that let one engine serve code and non-code flavors.
+- [`docs/engine/releases.md`](./docs/engine/releases.md) — the tag-driven release and build-provenance flow.
+- [`docs/README.md`](./docs/README.md) — the docs index and per-feature documentation convention.
+
+Each flavor has its own page under [`docs/flavors/`](./docs/flavors/), linked from the table above.
 
 ## Build
 
