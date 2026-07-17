@@ -70,7 +70,7 @@ CommonRoot      string
 
 Optional fallback layer. If set, the scaffold engine walks `CommonTemplates` after the flavor's own `Templates`, claiming any relative path the flavor didn't already produce. Code flavors all set `CommonTemplates: common.Templates()` so they share `.agent/scripts/check.sh`, `gen-codemap.sh`, and `review.sh`. Non-code flavors leave it nil — `claude-cowork` doesn't want `check.sh` or `gen-codemap.sh` in a document folder.
 
-See [common-overlay.md](./common-overlay.md) (TODO) for the layering semantics and conflict resolution.
+See [common-overlay.md](./common-overlay.md) for the layering semantics and conflict resolution.
 
 ## Adding a non-code flavor
 
