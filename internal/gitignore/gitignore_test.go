@@ -242,6 +242,50 @@ func TestEnsureHiddenWritesNoGitignore(t *testing.T) {
 	}
 }
 
+// TestHasBlockDetectsManagedBlock covers the read-only detector used by the
+// `status` subcommand. The detector must reuse the same marker constants the
+// writers use, so a file produced by EnsureLocal/EnsureHidden is recognized
+// and unrelated content is not.
+func TestHasBlockDetectsManagedBlock(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name    string
+		content string
+		want    bool
+	}{
+		{"empty file", "", false},
+		{"no block at all", "node_modules/\ndist/\n", false},
+		{"only start marker (truncated block)", blockStart + "\n.agent/\n", false},
+		{"only end marker (no start)", "stuff\n" + blockEnd + "\n", false},
+		{"full block alone", Block(), true},
+		{"block surrounded by content", "before\n" + Block() + "after\n", true},
+		{"end-before-start is not a block", blockEnd + "\nstuff\n" + blockStart + "\n", false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			if got := HasBlock(tt.content); got != tt.want {
+				t.Errorf("HasBlock() = %v, want %v\n--- content ---\n%s", got, tt.want, tt.content)
+			}
+		})
+	}
+}
+
+// TestExportedMarkersMatchInternal guards against accidental drift between the
+// exported MarkerStart/MarkerEnd and the package-private constants the writers
+// use. They must alias the same literals: a downstream caller that prints the
+// markers (the `status` undo hint) needs them byte-for-byte identical to what
+// is on disk.
+func TestExportedMarkersMatchInternal(t *testing.T) {
+	t.Parallel()
+	if MarkerStart != blockStart {
+		t.Errorf("MarkerStart = %q, want %q", MarkerStart, blockStart)
+	}
+	if MarkerEnd != blockEnd {
+		t.Errorf("MarkerEnd = %q, want %q", MarkerEnd, blockEnd)
+	}
+}
+
 func readFile(t *testing.T, path string) string {
 	t.Helper()
 	b, err := os.ReadFile(path)
