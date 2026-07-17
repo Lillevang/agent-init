@@ -79,10 +79,12 @@ Releases are tag-driven. Pushing a semver tag (`vX.Y.Z`) is the only trigger tha
 | `--force` | Overwrite existing files. Default: skip with a notice. |
 | `--no-git` | Skip `git init` if target isn't already a repo. |
 | `--dry-run` | Print what would happen without writing anything. |
+| `--visibility` | How the scaffold is tracked by git: `shared` (default, committed), `local` (ignored via a committed `.gitignore` block), `hidden` (ignored via `.git/info/exclude`, no committed trace), or `global-default` (ignored via the machine-wide git excludes file — affects every repo). Code flavors only. |
+| `--private` | Alias for `--visibility=hidden`. |
 
-### Planned `--gitignore-global`
+### Visibility and global excludes
 
-Global gitignore support is planned but not exposed until implemented. When added, it must be idempotent, use a clearly marked managed block, include tests in `internal/gitconfig/`, and warn that global excludes affect every repository on the user's machine.
+All four `--visibility` modes are implemented; see [`docs/cli.md`](../docs/cli.md) and the handlers in `internal/cli` (managed-block content in `internal/gitignore`, global-excludes resolution in `internal/gitconfig`). `--visibility=global-default` is the shipped form of what earlier docs described as a planned `--gitignore-global` flag: it writes a clearly-marked, idempotent managed block to the user's machine-wide git excludes file. That reach is a footgun — it ignores the scaffold in *every* repository on the machine — so it is never the default, prints a loud warning plus the absolute path it edited, and is reversible by removing the block. Covered by tests in `internal/gitconfig/` and `internal/gitignore/`.
 
 ## Conventions
 
@@ -120,7 +122,7 @@ Templates are embedded via `//go:embed all:templates`. Important constraints:
 
 - Files: snake_case for Go files (`flavor_registry.go`), kebab-case for shell scripts (`gen-codemap.sh`), as conventions dictate.
 - Exported Go identifiers: idiomatic CamelCase, no stutter (`flavors.Registry` not `flavors.FlavorRegistry`).
-- CLI flags: kebab-case (`--no-git`, `--force`, `--gitignore-global`).
+- CLI flags: kebab-case (`--no-git`, `--dry-run`, `--visibility`).
 
 ### Commits
 
@@ -205,7 +207,7 @@ The per-flavor hooks (`Symlinks`, `NextSteps`, optional `CommonTemplates`) are d
 - Do not bypass `check.sh` failures with `--no-verify` or by editing the script.
 - Do not introduce a templating engine other than `text/template` (or `html/template` for HTML files, if that ever applies). The `.tmpl` extension convention exists specifically to avoid escaping wars with files that contain `{{` natively.
 - Do not add a flavor without a golden-file test. Untested templates rot.
-- Do not modify the user's global git config without it being an explicit user-requested action (i.e. only the `--gitignore-global` flag may touch it, and only with the documented managed-block pattern). Never silently mutate any other `git config --global` keys.
+- Do not modify the user's global git config without it being an explicit user-requested action (i.e. only `--visibility=global-default` may touch it, and only with the documented managed-block pattern). Never silently mutate any other `git config --global` keys.
 
 ## When you're stuck
 
@@ -240,4 +242,4 @@ If you find yourself doing repetitive work that neither skill covers, propose a 
 - **Recursion gotcha:** this repo's own `.agent/`, `.devcontainer/`, `Justfile`, etc. are local working files for developing `agent-init`. They are not authoritative downstream templates — those live under `internal/flavors/*/templates/`. When you're tempted to "fix" this repo's top-level scaffolding, ask whether the fix belongs in a flavor template instead.
 - **IaC flavors (phase 2) will need different defaults**, especially: no Playwright, codemap based on Terraform modules / Ansible roles, different mount conventions in the devcontainer (state files, SSH keys for Ansible — handle carefully and document the security implications in the flavor's own README).
 - **The binary must be cross-compilable.** `GOOS=linux GOARCH=amd64 go build` and `GOOS=darwin GOARCH=arm64 go build` both have to work. Don't reach for syscalls or platform-specific paths without a build tag.
-- **Global gitignore is a footgun.** Do not expose `--gitignore-global` until it is implemented and tested. When implementing it, the help text and any printed output must make clear that the change is machine-wide and affects every repo. Default is `off` for this reason. Don't be clever about defaults.
+- **Global gitignore is a footgun.** It ships as `--visibility=global-default`, not a separate `--gitignore-global` flag. The help text and printed output make clear the change is machine-wide and affects every repo, and it is never the default — keep it that way. Don't be clever about defaults.
