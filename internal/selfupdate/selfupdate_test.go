@@ -32,11 +32,6 @@ func (f *fakeSource) Download(_ context.Context, url string) ([]byte, error) {
 	return b, nil
 }
 
-// TestCompareVersions covers our normalization seam against
-// golang.org/x/mod/semver: the leading v is optional, missing minor/patch
-// expand to .0, and unparseable inputs (e.g. "dev") are treated as older than
-// any real release. semver-internal ordering is upstream's job; we only smoke
-// it here.
 func TestCompareVersions(t *testing.T) {
 	t.Parallel()
 	cases := []struct {
@@ -44,10 +39,16 @@ func TestCompareVersions(t *testing.T) {
 		want int
 	}{
 		{"v1.0.0", "v1.0.1", -1},
+		{"v1.2.0", "v1.1.9", 1},
+		{"v1.2.3", "v1.2.3", 0},
 		{"1.2.3", "v1.2.3", 0}, // leading v optional
-		{"v1.0.0", "v1.0", 0},  // missing patch == .0
-		{"dev", "v1.0.0", -1},  // unparseable current is older
-		{"v1.0.0", "dev", 1},   // unparseable latest is older
+		{"v2.0.0", "v1.9.9", 1},
+		{"v1.0.0", "v1.0", 0},         // missing patch == .0
+		{"v1.0.0-rc1", "v1.0.0", -1},  // prerelease < release
+		{"v1.0.0", "v1.0.0-rc1", 1},   // release > prerelease
+		{"v1.0.0+build", "v1.0.0", 0}, // build metadata ignored
+		{"dev", "v1.0.0", -1},         // unparseable current is older
+		{"v1.0.0", "dev", 1},          // unparseable latest is older
 	}
 	for _, tc := range cases {
 		if got := compareVersions(tc.a, tc.b); got != tc.want {
