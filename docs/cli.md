@@ -9,6 +9,7 @@ agent-init status [target]
 agent-init list-flavors
 agent-init list-trackers
 agent-init version
+agent-init upgrade [--check] [--dry-run] [--force]
 ```
 
 If no subcommand is given, the binary defaults to `init` with the default flavor. So `agent-init` and `agent-init init` are equivalent.
@@ -168,6 +169,34 @@ agent-init version=v1.2.3 commit=abc123 buildDate=2026-05-14T10:00:00Z
 In dev builds (`go run ./cmd/agent-init version`), prints
 `version=dev commit=dev buildDate=unknown` — the ldflags only apply to release
 builds.
+
+## `upgrade`
+
+Updates `agent-init` in place to the latest GitHub release. There is **no
+automatic background check**: a release is only contacted when you run this
+command, so normal invocations make no network calls.
+
+```bash
+agent-init upgrade           # install the latest release, replacing this binary
+agent-init upgrade --check   # only report whether a newer version exists
+agent-init upgrade --dry-run # download and verify, but do not replace the binary
+```
+
+### Flags
+
+| Flag | Effect |
+|------|--------|
+| `--check` | Report whether a newer release exists and exit, without downloading or installing anything. |
+| `--dry-run` | Download the latest archive and verify its checksum, but stop before replacing the binary. |
+| `--force` | Install the latest release even when the current version is already newest. Also required to upgrade a dev build, which has no release version to compare against. |
+
+### Behavior
+
+- Makes a network call to GitHub's releases API and downloads the OS/arch-specific asset plus `checksums.txt`. Honors `GITHUB_TOKEN` / `GH_TOKEN` to lift the anonymous rate limit.
+- Verifies the archive's SHA-256 against the published checksum and swaps the binary in place. **Fails closed on checksum mismatch** — the existing binary is left untouched.
+- Requires write permission on the binary's install directory. A root-owned install path (e.g. `/usr/local/bin`) cannot be upgraded without elevated access; `upgrade` reports the error rather than escalating itself.
+- A dev build (`version=dev`) cannot be compared to a release; `upgrade` refuses unless `--force` is passed.
+- Source: [internal/selfupdate/selfupdate.go](../internal/selfupdate/selfupdate.go) (verify + replace), [internal/selfupdate/github.go](../internal/selfupdate/github.go) (releases client), [cli.go:runUpgrade](../internal/cli/cli.go). The release asset names this matches are cut by [.github/workflows/release.yml](../.github/workflows/release.yml).
 
 ## Help
 
