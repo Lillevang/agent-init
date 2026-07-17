@@ -1,6 +1,6 @@
 # CLI
 
-`agent-init` is a small CLI with six subcommands. Source: [internal/cli/cli.go](../internal/cli/cli.go).
+`agent-init` is a small CLI with seven subcommands. Source: [internal/cli/cli.go](../internal/cli/cli.go).
 
 ```
 agent-init init [flavor] [target-dir]
@@ -44,7 +44,7 @@ agent-init ./my-tool                      # path-only form; implies fullstack
 - With `--visibility=local`: after the scaffold is written (symlinks and `git init` included — visibility controls tracking, not creation), a fenced block is appended to the committed `.gitignore`, creating it if absent. The block covers the agentic envelope (`.agent/`, `/AGENTS.md`, `/CLAUDE.md`, `.devcontainer/`, `/Justfile`, `.pre-commit-config.yaml`). It is delimited by `# >>> agent-init (private) >>>` / `# <<< agent-init <<<` markers, so re-running replaces it in place (never duplicates) and it can be removed by hand to undo. `init` prints the absolute path it edited. `--dry-run` previews the path and block, writing nothing. Block management lives in [internal/gitignore](../internal/gitignore/gitignore.go).
 - With `--visibility=hidden` (or `--private`): the identical block is written to `.git/info/exclude` instead of `.gitignore`, creating the `.git/info` directory if absent. `.git/info/exclude` is git's per-repo, never-committed ignore file, so a teammate cloning the repo sees no agent-init trace. The mode is otherwise the same as `local`: idempotent in-place replacement, the absolute path is announced, `--dry-run` previews and writes nothing, and the symlink trio is still created (visibility controls tracking, not creation). Because `.git/info/exclude` does not appear in `git diff`, remember to remove the fenced block by hand to undo.
 - With `--visibility=global-default`: the **same** fenced block is written to your machine-wide git excludes file instead of a repo file, so the scaffold is ignored in **every** git repository on the machine. **This is action-at-a-distance.** The command prints a loud machine-wide warning on stderr and always announces the absolute path it edited. The target file is `git config --global core.excludesfile` if set (honored even when it points somewhere unusual); otherwise `${XDG_CONFIG_HOME:-~/.config}/git/ignore`, which is created and set as `core.excludesfile` only when no global excludes is configured. No other global-config key is touched. Idempotent (the marked block is replaced in place) and reversible (remove the block by hand). `--dry-run` resolves and prints the target path and the block but writes nothing and touches no git config. To commit the scaffold openly in a specific repo despite the global default, force-add it there — `git add -f .agent AGENTS.md CLAUDE.md .devcontainer Justfile .pre-commit-config.yaml` — since git never re-ignores a tracked file (gitignore negation cannot re-include a file under an excluded directory, so force-add is the documented override). The global excludes-file resolution lives in [internal/gitconfig](../internal/gitconfig/gitconfig.go); the block content is shared from [internal/gitignore](../internal/gitignore/gitignore.go).
-- Source: [scaffold.go:31](../internal/scaffold/scaffold.go#L31) (`Run`), [cli.go:applyVisibility](../internal/cli/cli.go).
+- Source: [scaffold.go:62](../internal/scaffold/scaffold.go#L62) (`Run`), [cli.go:applyVisibility](../internal/cli/cli.go).
 
 ### Output
 
@@ -137,6 +137,7 @@ claude-cowork        Shared document-collaboration folder ...
 fullstack            TypeScript/Node frontend and backend ...
 go-backend           Go HTTP backend scaffold ...
 go-cli               Go command-line tool scaffold ...
+iac                  Combined Terraform + Ansible scaffold ...
 project-management   Project-management workspace ...
 ```
 
@@ -229,7 +230,7 @@ Invalid input prints a short hint and points the user at `--help`, then exits
 non-zero. Specific cases worth knowing:
 
 - **Unknown subcommand** prints `unknown command "foo"` followed by `Run 'agent-init --help' for usage`.
-- **Unknown flavor** prints the list of known flavors: `unknown flavor "foo" (known: claude-cowork, fullstack, go-backend, go-cli, project-management)`, then the init `--help` hint.
+- **Unknown flavor** prints the list of known flavors: `unknown flavor "foo" (known: claude-cowork, fullstack, go-backend, go-cli, iac, project-management)`, then the init `--help` hint.
 - **Unknown tracker** prints the list of known trackers, then the add-tracker `--help` hint.
 - **`add-tracker` on a target without `.mcp.json`** suggests the corresponding `init` command.
 
